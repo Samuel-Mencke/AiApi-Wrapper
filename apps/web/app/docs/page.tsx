@@ -19,7 +19,8 @@ const endpoints = [
   { method: "PATCH", path: "/admin/api-keys/:id", purpose: "Enables or disables a gateway key." },
   { method: "DELETE", path: "/admin/api-keys/:id", purpose: "Deletes a gateway key." },
   { method: "GET", path: "/admin/logs", purpose: "Metadata-only request logs. Prompts and responses are not stored." },
-  { method: "GET", path: "/admin/settings", purpose: "Runtime settings shown in the dashboard." }
+  { method: "GET", path: "/admin/settings", purpose: "Runtime settings shown in the dashboard." },
+  { method: "GET", path: "/admin/quota", purpose: "Z.ai quota policy summary plus local quota/rate-limit events." }
 ];
 
 const nonStreamingCurl = `curl ${API_BASE_URL}/v1/chat/completions \\

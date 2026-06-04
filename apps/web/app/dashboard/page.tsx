@@ -63,6 +63,22 @@ interface QuotaSetting {
   concurrencyLimit: number | null;
 }
 
+interface ProviderQuotaStatus {
+  provider: string;
+  status: string;
+  exactProviderResetAt: string | null;
+  estimatedFiveHourResetAt: string | null;
+  weeklyResetAt: string | null;
+  notes: string[];
+  lastQuotaEvent: null | {
+    createdAt: string;
+    modelAlias: string;
+    errorCode: string | null;
+    errorMessage: string | null;
+    estimatedFiveHourResetAt: string | null;
+  };
+}
+
 interface Stats {
   requestsToday: number;
   requestsLast5h: number;
@@ -197,6 +213,7 @@ function UsageTable({ title, rows }: { title: string; rows: UsageAggregate[] }) 
 export default function DashboardPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [quotaSettings, setQuotaSettings] = useState<QuotaSetting[]>([]);
+  const [providerQuota, setProviderQuota] = useState<ProviderQuotaStatus | null>(null);
   const [chartMode, setChartMode] = useState<ChartMode>("total");
   const [usageMode, setUsageMode] = useState<"provider" | "modelAlias">("provider");
   const [error, setError] = useState("");
@@ -204,11 +221,13 @@ export default function DashboardPage() {
   function load() {
     Promise.all([
       apiFetch<Stats>("/admin/stats"),
-      apiFetch<ApiEnvelope<QuotaSetting[]>>("/admin/quota-settings")
+      apiFetch<ApiEnvelope<QuotaSetting[]>>("/admin/quota-settings"),
+      apiFetch<ProviderQuotaStatus>("/admin/quota")
     ])
-      .then(([statsResult, quotaResult]) => {
+      .then(([statsResult, quotaResult, providerQuotaResult]) => {
         setStats(statsResult);
         setQuotaSettings(quotaResult.data);
+        setProviderQuota(providerQuotaResult);
       })
       .catch((err: Error) => setError(err.message));
   }
@@ -258,6 +277,37 @@ export default function DashboardPage() {
         <StatCard label="Estimated cost" value={usd(stats.estimatedCost)} detail={stats.topStats.costliestProvider ? `${stats.topStats.costliestProvider.label} leads` : "No cost yet"} />
         <StatCard label="Top model" value={stats.topStats.mostUsedModel?.label ?? "None"} detail={`${formatNumber(stats.topStats.mostUsedModel?.requests ?? 0)} requests`} />
       </div>
+
+      <Card className="border-blue-500/20">
+        <CardHeader className="flex flex-row items-center justify-between gap-3">
+          <CardTitle>Z.ai quota</CardTitle>
+          <Badge className="border-blue-500/30 text-blue-200">Renews every 5h</Badge>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <div className="text-sm font-medium text-zinc-100">
+                {providerQuota?.estimatedFiveHourResetAt
+                  ? `Next estimated reset: ${formatDate(providerQuota.estimatedFiveHourResetAt)}`
+                  : "Quota renews automatically every 5 hours after usage."}
+              </div>
+              <div className="mt-1 text-sm text-zinc-500">
+                {providerQuota?.lastQuotaEvent
+                  ? `Last quota issue: ${formatDate(providerQuota.lastQuotaEvent.createdAt)}`
+                  : "If requests stop because quota is empty, this card will show the next estimated reset time."}
+              </div>
+            </div>
+            <a
+              className="shrink-0 rounded-xl border border-zinc-800 px-3 py-2 text-sm text-blue-300 hover:bg-zinc-800 hover:text-blue-200"
+              href="https://z.ai/manage-apikey/subscription"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Z.ai usage
+            </a>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-3 gap-4">
         <Card className="col-span-2">

@@ -7,6 +7,7 @@ import { registerRateLimit } from "./middleware/rate-limit.js";
 import { chatCompletionRoutes } from "./routes/chat-completions.js";
 import { healthRoutes } from "./routes/health.js";
 import { modelRoutes } from "./routes/models.js";
+import { adminAuthRoutes } from "./routes/admin-auth.js";
 import { adminApiKeyRoutes } from "./routes/admin-api-keys.js";
 import { adminLogRoutes } from "./routes/admin-logs.js";
 import { adminModelRoutes } from "./routes/admin-models.js";
@@ -32,6 +33,7 @@ migrate();
 syncConfigToDatabase();
 
 await app.register(healthRoutes);
+await app.register(adminAuthRoutes);
 await app.register(modelRoutes);
 await app.register(chatCompletionRoutes);
 await app.register(adminStatsRoutes);

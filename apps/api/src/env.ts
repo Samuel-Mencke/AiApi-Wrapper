@@ -22,6 +22,9 @@ const schema = z.object({
   GEMINI_API_KEY: z.string().optional(),
   OPENROUTER_API_KEY: z.string().optional(),
   ZAI_API_KEY: z.string().optional(),
+  ADMIN_USERNAME: z.string().min(1).default("samuel"),
+  ADMIN_PASSWORD_HASH: z.string().min(1).optional(),
+  ADMIN_SESSION_SECRET: z.string().min(32).default("change-me-change-me-change-me-change-me"),
   ENABLE_PROMPT_LOGGING: z
     .preprocess((value) => {
       if (typeof value === "string") {

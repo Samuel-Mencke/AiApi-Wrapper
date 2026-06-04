@@ -321,4 +321,44 @@ export async function adminStatsRoutes(app: FastifyInstance): Promise<void> {
       publicApiAuth: "optional"
     }
   }));
+
+  app.get("/admin/quota", { preHandler: requireAdminAuth }, async () => {
+    const allRequests = db.select().from(requests).all();
+    const quotaError = allRequests
+      .filter((request) => {
+        const text = `${request.errorCode ?? ""} ${request.errorMessage ?? ""}`.toLowerCase();
+        return request.provider === "z-ai" && (request.status === "error") &&
+          (text.includes("quota") || text.includes("limit") || text.includes("rate") || text.includes("429"));
+      })
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+
+    const estimatedFiveHourResetAt = quotaError
+      ? new Date(new Date(quotaError.createdAt).getTime() + 5 * 60 * 60 * 1000).toISOString()
+      : null;
+
+    return {
+      provider: "z-ai",
+      status: quotaError ? "quota_or_rate_limit_seen" : "no_recent_quota_error",
+      source: "Z.ai Coding Plan docs and local gateway logs",
+      exactProviderResetAt: null,
+      estimatedFiveHourResetAt,
+      weeklyResetAt: null,
+      notes: [
+        "Z.ai documents a dynamic 5-hour quota pool that resets 5 hours after consumption.",
+        "The weekly Coding Plan limit resets every 7 days after subscription activation.",
+        "The OpenAI-compatible API does not expose an exact subscription renewal timestamp to this gateway."
+      ],
+      lastQuotaEvent: quotaError
+        ? {
+            createdAt: quotaError.createdAt,
+            modelAlias: quotaError.modelAlias,
+            provider: quotaError.provider,
+            realModel: quotaError.realModel,
+            errorCode: quotaError.errorCode,
+            errorMessage: quotaError.errorMessage,
+            estimatedFiveHourResetAt
+          }
+        : null
+    };
+  });
 }

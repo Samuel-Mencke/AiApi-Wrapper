@@ -19,12 +19,30 @@ interface Settings {
   };
 }
 
+interface QuotaStatus {
+  provider: string;
+  status: string;
+  exactProviderResetAt: string | null;
+  estimatedFiveHourResetAt: string | null;
+  weeklyResetAt: string | null;
+  notes: string[];
+  lastQuotaEvent: null | {
+    createdAt: string;
+    modelAlias: string;
+    errorCode: string | null;
+    errorMessage: string | null;
+    estimatedFiveHourResetAt: string | null;
+  };
+}
+
 export default function SettingsPage() {
   const [settings, setSettings] = useState<Settings | null>(null);
+  const [quota, setQuota] = useState<QuotaStatus | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
     apiFetch<Settings>("/admin/settings").then(setSettings).catch((err: Error) => setError(err.message));
+    apiFetch<QuotaStatus>("/admin/quota").then(setQuota).catch((err: Error) => setError(err.message));
   }, []);
 
   return (
@@ -53,6 +71,45 @@ export default function SettingsPage() {
               </Table>
             ) : (
               <div className="text-sm text-zinc-500">Loading environment...</div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle>Z.ai quota</CardTitle></CardHeader>
+          <CardContent>
+            {quota ? (
+              <div className="space-y-5">
+                <Table>
+                  <tbody>
+                    <tr><Th>Provider</Th><Td>{quota.provider}</Td></tr>
+                    <tr><Th>Status</Th><Td><Badge>{quota.status}</Badge></Td></tr>
+                    <tr><Th>Exact reset from API</Th><Td>{quota.exactProviderResetAt ?? "Not exposed by provider API"}</Td></tr>
+                    <tr><Th>Estimated 5h reset</Th><Td>{quota.estimatedFiveHourResetAt ?? "No local quota error seen"}</Td></tr>
+                    <tr><Th>Weekly reset</Th><Td>{quota.weeklyResetAt ?? "Depends on subscription activation date"}</Td></tr>
+                  </tbody>
+                </Table>
+                {quota.lastQuotaEvent ? (
+                  <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+                    <div className="text-sm font-medium text-zinc-100">Last quota event</div>
+                    <div className="mt-2 grid grid-cols-2 gap-3 text-sm text-zinc-400">
+                      <div>Time: {quota.lastQuotaEvent.createdAt}</div>
+                      <div>Model: {quota.lastQuotaEvent.modelAlias}</div>
+                      <div>Error: {quota.lastQuotaEvent.errorCode ?? "unknown"}</div>
+                      <div>Reset estimate: {quota.lastQuotaEvent.estimatedFiveHourResetAt ?? "unknown"}</div>
+                    </div>
+                    <div className="mt-2 text-sm text-zinc-500">{quota.lastQuotaEvent.errorMessage}</div>
+                  </div>
+                ) : null}
+                <div className="space-y-2 text-sm text-zinc-500">
+                  {quota.notes.map((note) => <p key={note}>{note}</p>)}
+                  <a className="text-blue-300 hover:text-blue-200" href="https://z.ai/manage-apikey/subscription" target="_blank" rel="noreferrer">
+                    Open Z.ai usage statistics
+                  </a>
+                </div>
+              </div>
+            ) : (
+              <div className="text-sm text-zinc-500">Loading quota status...</div>
             )}
           </CardContent>
         </Card>
