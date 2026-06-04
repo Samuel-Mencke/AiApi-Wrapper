@@ -18,6 +18,8 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: https://api.samuelm.de
     env_file:
       - .env
     environment:

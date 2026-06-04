@@ -11,9 +11,7 @@ export async function modelRoutes(app: FastifyInstance): Promise<void> {
         id: model.alias,
         object: "model",
         created: 0,
-        owned_by: "ai-gateway",
-        provider: model.provider,
-        real_model: model.model
+        owned_by: "ai-gateway"
       }))
   }));
 }

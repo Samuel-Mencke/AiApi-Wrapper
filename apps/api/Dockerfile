@@ -10,7 +10,7 @@ RUN pnpm install --filter @ai-gateway/api... --frozen-lockfile=false
 COPY packages packages
 COPY apps/api apps/api
 COPY config config
-RUN pnpm --filter @ai-gateway/api build
+RUN pnpm --filter @ai-gateway/core build && pnpm --filter @ai-gateway/api build
 
 EXPOSE 18789
 CMD ["pnpm", "--filter", "@ai-gateway/api", "start"]

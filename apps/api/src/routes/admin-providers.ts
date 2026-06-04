@@ -25,7 +25,7 @@ export async function adminProviderRoutes(app: FastifyInstance): Promise<void> {
   }));
 
   app.post("/admin/providers/test", { preHandler: requireAdminAuth }, async (request) => {
-    const body = z.object({ provider: z.string().min(1) }).parse(request.body);
+    const body = z.object({ provider: z.string().min(1), modelAlias: z.string().optional() }).parse(request.body);
     const provider = db.select().from(providers).where(eq(providers.name, body.provider)).get();
     if (!provider) {
       return { ok: false, message: "Provider not found" };
@@ -34,12 +34,30 @@ export async function adminProviderRoutes(app: FastifyInstance): Promise<void> {
     if (!adapter) {
       return { ok: false, message: "No adapter registered" };
     }
-    return adapter.test({
-      name: provider.name,
-      type: provider.type as "openai" | "openrouter" | "gemini" | "anthropic" | "custom",
-      baseUrl: provider.baseUrl ?? undefined,
-      enabled: provider.enabled
-    });
+    const start = Date.now();
+    try {
+      const result = await adapter.complete(
+        {
+          modelAlias: body.modelAlias ?? "glm-5-turbo",
+          messages: [{ role: "user", content: "Say 'test ok' in exactly those two words." }],
+          maxTokens: 10,
+          stream: false
+        },
+        { provider: provider.name, model: body.modelAlias ?? "glm-5-turbo" },
+        {
+          name: provider.name,
+          type: provider.type as "openai" | "openrouter" | "gemini" | "anthropic" | "custom",
+          baseUrl: provider.baseUrl ?? undefined,
+          enabled: provider.enabled
+        }
+      );
+      const latencyMs = Date.now() - start;
+      const content = typeof result.content === "string" ? result.content : JSON.stringify(result.content);
+      return { ok: true, message: content.slice(0, 200), latencyMs };
+    } catch (error) {
+      const latencyMs = Date.now() - start;
+      return { ok: false, message: error instanceof Error ? error.message : "Provider test failed", latencyMs };
+    }
   });
 
   app.patch("/admin/providers/:id", { preHandler: requireAdminAuth }, async (request) => {

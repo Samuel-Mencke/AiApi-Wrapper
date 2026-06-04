@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { nanoid } from "nanoid";
 import { z } from "zod";
@@ -15,7 +15,7 @@ export async function adminApiKeyRoutes(app: FastifyInstance): Promise<void> {
       monthlyLimit: apiKeys.monthlyLimit,
       createdAt: apiKeys.createdAt,
       lastUsedAt: apiKeys.lastUsedAt
-    }).from(apiKeys).all()
+    }).from(apiKeys).where(ne(apiKeys.id, "system")).all()
   }));
 
   app.post("/admin/api-keys", { preHandler: requireAdminAuth }, async (request) => {
@@ -45,6 +45,9 @@ export async function adminApiKeyRoutes(app: FastifyInstance): Promise<void> {
 
   app.delete("/admin/api-keys/:id", { preHandler: requireAdminAuth }, async (request) => {
     const params = z.object({ id: z.string() }).parse(request.params);
+    if (params.id === "system") {
+      return { ok: false, message: "Cannot delete internal system key" };
+    }
     db.delete(apiKeys).where(eq(apiKeys.id, params.id)).run();
     return { ok: true };
   });
