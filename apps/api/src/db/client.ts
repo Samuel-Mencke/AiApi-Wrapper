@@ -1,0 +1,74 @@
+import fs from "node:fs";
+import path from "node:path";
+import Database from "better-sqlite3";
+import { drizzle } from "drizzle-orm/better-sqlite3";
+import { env } from "../env.js";
+import * as schema from "./schema.js";
+
+const databaseFile = path.resolve(env.root, env.databasePath);
+fs.mkdirSync(path.dirname(databaseFile), { recursive: true });
+
+export const sqlite = new Database(databaseFile);
+sqlite.pragma("journal_mode = WAL");
+sqlite.pragma("foreign_keys = ON");
+
+export const db = drizzle(sqlite, { schema });
+
+export function migrate(): void {
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS api_keys (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      key_hash TEXT NOT NULL UNIQUE,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      monthly_limit INTEGER,
+      created_at TEXT NOT NULL,
+      last_used_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS providers (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      type TEXT NOT NULL,
+      base_url TEXT,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS model_routes (
+      id TEXT PRIMARY KEY,
+      alias TEXT NOT NULL UNIQUE,
+      provider TEXT NOT NULL,
+      real_model TEXT NOT NULL,
+      fallback_json TEXT NOT NULL DEFAULT '[]',
+      enabled INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS requests (
+      id TEXT PRIMARY KEY,
+      api_key_id TEXT,
+      model_alias TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      real_model TEXT NOT NULL,
+      status TEXT NOT NULL,
+      latency_ms INTEGER NOT NULL,
+      input_tokens INTEGER,
+      output_tokens INTEGER,
+      estimated_cost REAL,
+      error_code TEXT,
+      error_message TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS quota_settings (
+      id TEXT PRIMARY KEY,
+      provider TEXT NOT NULL,
+      model_alias TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 0,
+      window_hours INTEGER NOT NULL DEFAULT 5,
+      request_limit INTEGER,
+      token_limit INTEGER,
+      concurrency_limit INTEGER,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE(provider, model_alias)
+    );
+  `);
+}

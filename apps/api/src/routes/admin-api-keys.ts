@@ -1,0 +1,65 @@
+import { eq } from "drizzle-orm";
+import type { FastifyInstance } from "fastify";
+import { nanoid } from "nanoid";
+import { z } from "zod";
+import { db } from "../db/client.js";
+import { apiKeys } from "../db/schema.js";
+import { hashApiKey, requireAdminAuth } from "../middleware/auth.js";
+
+export async function adminApiKeyRoutes(app: FastifyInstance): Promise<void> {
+  app.get("/admin/api-keys", { preHandler: requireAdminAuth }, async () => ({
+    data: db.select({
+      id: apiKeys.id,
+      name: apiKeys.name,
+      enabled: apiKeys.enabled,
+      monthlyLimit: apiKeys.monthlyLimit,
+      createdAt: apiKeys.createdAt,
+      lastUsedAt: apiKeys.lastUsedAt
+    }).from(apiKeys).all()
+  }));
+
+  app.post("/admin/api-keys", { preHandler: requireAdminAuth }, async (request) => {
+    const body = z.object({
+      name: z.string().min(1),
+      monthlyLimit: z.number().int().positive().optional()
+    }).parse(request.body);
+    const key = `gw_${nanoid(32)}`;
+    const row = {
+      id: nanoid(),
+      name: body.name,
+      keyHash: hashApiKey(key),
+      enabled: true,
+      monthlyLimit: body.monthlyLimit,
+      createdAt: new Date().toISOString()
+    };
+    db.insert(apiKeys).values(row).run();
+    return {
+      id: row.id,
+      name: row.name,
+      enabled: row.enabled,
+      monthlyLimit: row.monthlyLimit,
+      createdAt: row.createdAt,
+      key
+    };
+  });
+
+  app.delete("/admin/api-keys/:id", { preHandler: requireAdminAuth }, async (request) => {
+    const params = z.object({ id: z.string() }).parse(request.params);
+    db.delete(apiKeys).where(eq(apiKeys.id, params.id)).run();
+    return { ok: true };
+  });
+
+  app.patch("/admin/api-keys/:id", { preHandler: requireAdminAuth }, async (request) => {
+    const params = z.object({ id: z.string() }).parse(request.params);
+    const body = z.object({ enabled: z.boolean() }).parse(request.body);
+    db.update(apiKeys).set({ enabled: body.enabled }).where(eq(apiKeys.id, params.id)).run();
+    return db.select({
+      id: apiKeys.id,
+      name: apiKeys.name,
+      enabled: apiKeys.enabled,
+      monthlyLimit: apiKeys.monthlyLimit,
+      createdAt: apiKeys.createdAt,
+      lastUsedAt: apiKeys.lastUsedAt
+    }).from(apiKeys).where(eq(apiKeys.id, params.id)).get();
+  });
+}

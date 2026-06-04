@@ -1,0 +1,24 @@
+{
+  "name": "ai-gateway",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=22 <25"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @ai-gateway/api --filter @ai-gateway/web dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm --filter @ai-gateway/core build && pnpm -r --filter ./apps/* typecheck",
+    "lint": "pnpm -r lint",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.19.1",
+    "@typescript-eslint/parser": "^8.19.1",
+    "eslint": "^9.17.0",
+    "eslint-config-next": "^15.1.3",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.2"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "name": "@ai-gateway/core",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/types.d.ts",
+      "default": "./dist/types.js"
+    },
+    "./pricing": {
+      "types": "./dist/pricing.d.ts",
+      "default": "./dist/pricing.js"
+    },
+    "./errors": {
+      "types": "./dist/errors.d.ts",
+      "default": "./dist/errors.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src --ext .ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}

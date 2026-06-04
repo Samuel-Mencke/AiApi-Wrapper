@@ -1,0 +1,6 @@
+{$GATEWAY_DOMAIN} {
+  reverse_proxy /v1/* api:18789
+  reverse_proxy /health api:18789
+  reverse_proxy /admin/* api:18789
+  reverse_proxy web:3000
+}

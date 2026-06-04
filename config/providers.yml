@@ -1,0 +1,45 @@
+providers:
+  openai:
+    type: openai
+    enabled: true
+  openrouter:
+    type: openrouter
+    enabled: true
+  gemini:
+    type: gemini
+    enabled: true
+  anthropic:
+    type: anthropic
+    enabled: false
+  custom:
+    type: custom
+    baseUrl: http://localhost:11434/v1
+    enabled: false
+  z-ai:
+    type: custom
+    baseUrl: https://api.z.ai/api/coding/paas/v4
+    enabled: true
+
+models:
+  z-ai-coding:
+    provider: z-ai
+    model: glm-4.5
+  glm5.1:
+    provider: z-ai
+    model: glm-5.1
+  glm5-turbo:
+    provider: z-ai
+    model: glm-5-turbo
+  fast-coder:
+    provider: openrouter
+    model: qwen/qwen3-coder
+    fallback:
+      - provider: gemini
+        model: gemini-2.5-flash
+  best-reasoning:
+    provider: openai
+    model: gpt-5.5
+  local-test:
+    provider: custom
+    baseUrl: http://localhost:11434/v1
+    model: llama-local
