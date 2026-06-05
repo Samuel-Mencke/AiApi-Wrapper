@@ -15,7 +15,8 @@ export const openAiChatRequestSchema = z.object({
   max_tokens: z.number().int().positive().optional(),
   stream: z.boolean().optional(),
   stream_options: z.record(z.unknown()).optional(),
-  tools: z.array(z.unknown()).optional()
+  tools: z.array(z.unknown()).optional(),
+  extra_body: z.record(z.unknown()).optional()
 });
 
 export function normalizeRequest(input: unknown): InternalChatRequest {
@@ -32,6 +33,7 @@ export function normalizeRequest(input: unknown): InternalChatRequest {
     maxTokens: parsed.max_tokens,
     stream: parsed.stream,
     streamOptions: parsed.stream_options,
-    tools: parsed.tools
+    tools: parsed.tools,
+    extraBody: parsed.extra_body
   };
 }

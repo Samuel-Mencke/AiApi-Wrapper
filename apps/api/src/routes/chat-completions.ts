@@ -32,7 +32,7 @@ function sanitizeSSEChunk(parsed: any): any | null {
   for (const choice of choices) {
     const delta = { ...(choice.delta ?? {}) };
 
-    // Strip reasoning fields
+    // Strip reasoning fields (Z.ai sends reasoning_content alongside content)
     delete delta.reasoning_content;
     delete delta.thinking_content;
 

@@ -35,8 +35,8 @@ function headers(config: ProviderConfig): HeadersInit {
   return value;
 }
 
-function body(request: InternalChatRequest, target: ModelRouteTarget, stream: boolean): Record<string, unknown> {
-  return {
+function body(request: InternalChatRequest, target: ModelRouteTarget, stream: boolean, providerName?: string): Record<string, unknown> {
+  const result: Record<string, unknown> = {
     model: target.model,
     messages: request.messages.map((message) => ({
       role: message.role,
@@ -50,6 +50,13 @@ function body(request: InternalChatRequest, target: ModelRouteTarget, stream: bo
     stream_options: request.streamOptions,
     stream
   };
+
+  // Forward extra_body fields (e.g. thinking, reasoning for Z.ai/GLM)
+  if (request.extraBody && typeof request.extraBody === "object") {
+    Object.assign(result, request.extraBody);
+  }
+
+  return result;
 }
 
 async function handleProviderError(response: Response, provider: string): Promise<never> {
@@ -77,7 +84,7 @@ export function createOpenAiCompatibleAdapter(name: string): ProviderAdapter {
       const response = await fetch(url, {
         method: "POST",
         headers: headers(config),
-        body: JSON.stringify(body(request, target, false)),
+        body: JSON.stringify(body(request, target, false, config.name)),
         signal: AbortSignal.timeout(60_000)
       }).catch((error: unknown) => {
         throw new GatewayError(error instanceof Error ? error.message : "Provider network error", {
@@ -115,7 +122,7 @@ export function createOpenAiCompatibleAdapter(name: string): ProviderAdapter {
       const response = await fetch(url, {
         method: "POST",
         headers: headers(config),
-        body: JSON.stringify(body(request, target, true)),
+        body: JSON.stringify(body(request, target, true, config.name)),
         signal: AbortSignal.timeout(60_000)
       }).catch((error: unknown) => {
         throw new GatewayError(error instanceof Error ? error.message : "Provider network error", {

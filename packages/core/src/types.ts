@@ -15,6 +15,7 @@ export interface InternalChatRequest {
   stream?: boolean;
   streamOptions?: Record<string, unknown>;
   tools?: unknown[];
+  extraBody?: Record<string, unknown>;
 }
 
 export interface ModelRouteTarget {
