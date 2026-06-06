@@ -22,6 +22,8 @@ const quotaPatchBody = z.object({
   tokenLimit: z.number().int().positive().nullable().optional()
 });
 
+const PROVIDER_QUOTA_ALIAS = "__provider__";
+
 type RequestRow = typeof requests.$inferSelect;
 
 interface UsageAggregate {
@@ -87,9 +89,35 @@ function zAiConcurrencyLimit(model: string): number | null {
 
 function ensureQuotaSettings(): void {
   const now = new Date().toISOString();
+  const allProviders = db.select().from(providers).all();
   const routes = db.select().from(modelRoutes).all();
+  const existingQuotaRows = db.select().from(quotaSettings).all();
+  for (const provider of allProviders) {
+    const existing = existingQuotaRows.find(
+      (setting) => setting.provider === provider.name && setting.modelAlias === PROVIDER_QUOTA_ALIAS
+    );
+    if (!existing) {
+      const providerRoutes = routes.filter((route) => route.provider === provider.name);
+      const legacyEnabled = existingQuotaRows.some(
+        (setting) => setting.provider === provider.name && setting.modelAlias !== PROVIDER_QUOTA_ALIAS && setting.enabled
+      );
+      db.insert(quotaSettings).values({
+        id: nanoid(),
+        provider: provider.name,
+        modelAlias: PROVIDER_QUOTA_ALIAS,
+        enabled: legacyEnabled,
+        windowHours: commonWindowHours(providerRoutes.map((route) => route.alias), existingQuotaRows),
+        requestLimit: commonLimit(providerRoutes.map((route) => route.alias), existingQuotaRows, "requestLimit"),
+        tokenLimit: commonLimit(providerRoutes.map((route) => route.alias), existingQuotaRows, "tokenLimit"),
+        concurrencyLimit: null,
+        createdAt: now,
+        updatedAt: now
+      }).run();
+    }
+  }
+
   for (const route of routes) {
-    const existing = db.select().from(quotaSettings).where(eq(quotaSettings.modelAlias, route.alias)).get();
+    const existing = existingQuotaRows.find((setting) => setting.modelAlias === route.alias);
     if (!existing) {
       db.insert(quotaSettings).values({
         id: nanoid(),
@@ -105,6 +133,26 @@ function ensureQuotaSettings(): void {
       }).run();
     }
   }
+}
+
+function commonWindowHours(modelAliases: string[], rows: Array<typeof quotaSettings.$inferSelect>): number {
+  const values = rows
+    .filter((row) => modelAliases.includes(row.modelAlias))
+    .map((row) => row.windowHours);
+  const first = values[0];
+  return first !== undefined && values.every((value) => value === first) ? first : 5;
+}
+
+function commonLimit(
+  modelAliases: string[],
+  rows: Array<typeof quotaSettings.$inferSelect>,
+  key: "requestLimit" | "tokenLimit"
+): number | null {
+  const values = rows
+    .filter((row) => modelAliases.includes(row.modelAlias))
+    .map((row) => row[key]);
+  const first = values[0];
+  return first !== undefined && values.every((value) => value === first) ? first : null;
 }
 
 function apiKeyNameMap(): Map<string, string> {
@@ -127,7 +175,15 @@ export async function adminStatsRoutes(app: FastifyInstance): Promise<void> {
       : 0;
     const totalTokens = allRequests.reduce((total, request) => total + (request.inputTokens ?? 0) + (request.outputTokens ?? 0), 0);
 
-    const hourly = new Map<string, { requests: number; errors: number }>();
+    const hourly = new Map<string, {
+      requests: number;
+      errors: number;
+      inputTokens: number;
+      outputTokens: number;
+      totalTokens: number;
+      estimatedCost: number;
+      latencyTotal: number;
+    }>();
     const hourlyByProvider = new Map<string, { time: string; key: string; requests: number; errors: number }>();
     const hourlyByModel = new Map<string, { time: string; key: string; requests: number; errors: number }>();
     const hourlyByApiKey = new Map<string, { time: string; key: string; requests: number; errors: number }>();
@@ -141,9 +197,25 @@ export async function adminStatsRoutes(app: FastifyInstance): Promise<void> {
 
     for (const request of allRequests) {
       const hour = request.createdAt.slice(0, 13) + ":00";
-      const bucket = hourly.get(hour) ?? { requests: 0, errors: 0 };
+      const inputTokens = request.inputTokens ?? 0;
+      const outputTokens = request.outputTokens ?? 0;
+      const totalRequestTokens = inputTokens + outputTokens;
+      const bucket = hourly.get(hour) ?? {
+        requests: 0,
+        errors: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        estimatedCost: 0,
+        latencyTotal: 0
+      };
       bucket.requests += 1;
       if (request.status === "error") bucket.errors += 1;
+      bucket.inputTokens += inputTokens;
+      bucket.outputTokens += outputTokens;
+      bucket.totalTokens += totalRequestTokens;
+      bucket.estimatedCost += request.estimatedCost ?? 0;
+      bucket.latencyTotal += request.latencyMs;
       hourly.set(hour, bucket);
 
       const apiKeyLabel = request.apiKeyId ? (keyNames.get(request.apiKeyId) ?? request.apiKeyId) : "Master / anonymous";
@@ -199,21 +271,31 @@ export async function adminStatsRoutes(app: FastifyInstance): Promise<void> {
     const providerUsage = Array.from(usageByProvider.values()).map(finalizeUsage).sort((a, b) => b.requests - a.requests);
     const modelUsage = Array.from(usageByModel.values()).map(finalizeUsage).sort((a, b) => b.requests - a.requests);
     const apiKeyUsage = Array.from(usageByApiKey.values()).map(finalizeUsage).sort((a, b) => b.requests - a.requests);
-    const quotaRows = db.select().from(quotaSettings).all().filter((setting) => setting.enabled);
+    const allQuotaRows = db.select().from(quotaSettings).all();
+    const providerQuotaProviders = new Set(
+      allQuotaRows
+        .filter((setting) => setting.modelAlias === PROVIDER_QUOTA_ALIAS)
+        .map((setting) => setting.provider)
+    );
+    const quotaRows = allQuotaRows.filter((setting) => {
+      if (!setting.enabled) return false;
+      if (setting.modelAlias === PROVIDER_QUOTA_ALIAS) return true;
+      return !providerQuotaProviders.has(setting.provider);
+    });
     const quotaWindows = quotaRows.map((setting) => {
       const windowStart = new Date(Date.now() - setting.windowHours * 60 * 60 * 1000).toISOString();
       const matching = allRequests.filter(
         (request) =>
           request.createdAt >= windowStart &&
           request.provider === setting.provider &&
-          request.modelAlias === setting.modelAlias
+          (setting.modelAlias === PROVIDER_QUOTA_ALIAS || request.modelAlias === setting.modelAlias)
       );
       const usedTokens = matching.reduce((total, request) => total + (request.inputTokens ?? 0) + (request.outputTokens ?? 0), 0);
       const requestPercent = setting.requestLimit ? matching.length / setting.requestLimit : null;
       const tokenPercent = setting.tokenLimit ? usedTokens / setting.tokenLimit : null;
       return {
         provider: setting.provider,
-        modelAlias: setting.modelAlias,
+        modelAlias: setting.modelAlias === PROVIDER_QUOTA_ALIAS ? "All models" : setting.modelAlias,
         enabled: setting.enabled,
         windowHours: setting.windowHours,
         requests: matching.length,
@@ -244,7 +326,16 @@ export async function adminStatsRoutes(app: FastifyInstance): Promise<void> {
       errorRate: allRequests.length ? errors / allRequests.length : 0,
       estimatedCost: Number(allRequests.reduce((total, request) => total + (request.estimatedCost ?? 0), 0).toFixed(6)),
       activeProviders,
-      requestsOverTime: Array.from(hourly.entries()).map(([time, value]) => ({ time, ...value })),
+      requestsOverTime: Array.from(hourly.entries()).map(([time, value]) => ({
+        time,
+        requests: value.requests,
+        errors: value.errors,
+        inputTokens: value.inputTokens,
+        outputTokens: value.outputTokens,
+        totalTokens: value.totalTokens,
+        estimatedCost: Number(value.estimatedCost.toFixed(6)),
+        averageLatencyMs: value.requests ? Math.round(value.latencyTotal / value.requests) : 0
+      })),
       requestsByProviderOverTime: Array.from(hourlyByProvider.values()),
       requestsByModelOverTime: Array.from(hourlyByModel.values()),
       requestsByApiKeyOverTime: Array.from(hourlyByApiKey.values()),
@@ -283,10 +374,28 @@ export async function adminStatsRoutes(app: FastifyInstance): Promise<void> {
     ensureQuotaSettings();
     const body = quotaPatchBody.parse(request.body);
     const now = new Date().toISOString();
-    const rows = db.select().from(quotaSettings).all().filter((setting) => {
+    let rows = db.select().from(quotaSettings).all().filter((setting) => {
       if (setting.provider !== body.provider) return false;
-      return body.modelAlias ? setting.modelAlias === body.modelAlias : true;
+      return body.modelAlias ? setting.modelAlias === body.modelAlias : setting.modelAlias === PROVIDER_QUOTA_ALIAS;
     });
+
+    if (!body.modelAlias && !rows.length) {
+      db.insert(quotaSettings).values({
+        id: nanoid(),
+        provider: body.provider,
+        modelAlias: PROVIDER_QUOTA_ALIAS,
+        enabled: body.enabled ?? false,
+        windowHours: body.windowHours ?? 5,
+        requestLimit: body.requestLimit ?? null,
+        tokenLimit: body.tokenLimit ?? null,
+        concurrencyLimit: null,
+        createdAt: now,
+        updatedAt: now
+      }).run();
+      rows = db.select().from(quotaSettings).all().filter((setting) =>
+        setting.provider === body.provider && setting.modelAlias === PROVIDER_QUOTA_ALIAS
+      );
+    }
 
     for (const row of rows) {
       db.update(quotaSettings)
