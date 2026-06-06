@@ -6,6 +6,7 @@ import { db } from "../db/client.js";
 import { apiKeys, modelRoutes, providers, quotaSettings, requests } from "../db/schema.js";
 import { env } from "../env.js";
 import { requireAdminAuth } from "../middleware/auth.js";
+import { CHAT_API_KEY_ID, CHAT_API_KEY_NAME, ensureInternalChatApiKey } from "../chat/internal-api-key.js";
 
 function startOfToday(): string {
   const now = new Date();
@@ -162,6 +163,7 @@ function apiKeyNameMap(): Map<string, string> {
 export async function adminStatsRoutes(app: FastifyInstance): Promise<void> {
   app.get("/admin/stats", { preHandler: requireAdminAuth }, async () => {
     ensureQuotaSettings();
+    ensureInternalChatApiKey();
     const allRequests = db.select().from(requests).all();
     const activeProviders = db.select().from(providers).all().filter((provider) => provider.enabled).length;
     const keyNames = apiKeyNameMap();
@@ -270,6 +272,10 @@ export async function adminStatsRoutes(app: FastifyInstance): Promise<void> {
 
     const providerUsage = Array.from(usageByProvider.values()).map(finalizeUsage).sort((a, b) => b.requests - a.requests);
     const modelUsage = Array.from(usageByModel.values()).map(finalizeUsage).sort((a, b) => b.requests - a.requests);
+    if (!usageByApiKey.has(CHAT_API_KEY_ID)) {
+      usageByApiKey.set(CHAT_API_KEY_ID, emptyUsage(CHAT_API_KEY_ID, keyNames.get(CHAT_API_KEY_ID) ?? CHAT_API_KEY_NAME));
+    }
+    const chatUsage = finalizeUsage(usageByApiKey.get(CHAT_API_KEY_ID)!);
     const apiKeyUsage = Array.from(usageByApiKey.values()).map(finalizeUsage).sort((a, b) => b.requests - a.requests);
     const allQuotaRows = db.select().from(quotaSettings).all();
     const providerQuotaProviders = new Set(
@@ -349,6 +355,7 @@ export async function adminStatsRoutes(app: FastifyInstance): Promise<void> {
       usageByApiKeyModel: Array.from(usageByApiKeyModel.values()).map(finalizeUsage),
       usageByModel: modelUsage,
       usageByProvider: providerUsage,
+      chatUsage,
       quotaWindows,
       topStats: {
         mostUsedModel: modelUsage[0] ?? null,

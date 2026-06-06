@@ -23,7 +23,7 @@ export default function LogsPage() {
           <h1 className="text-2xl font-semibold text-zinc-100">Logs</h1>
           <p className="mt-1 text-sm text-zinc-500">Metadata-only request history. Prompts and responses are not displayed.</p>
         </div>
-        {error ? <div className="text-sm text-red-300">{error}</div> : null}
+        {error ? <div className="text-sm text-[#ff9aad]">{error}</div> : null}
         <Card>
           <CardContent>
             <LogsTable data={logs} />

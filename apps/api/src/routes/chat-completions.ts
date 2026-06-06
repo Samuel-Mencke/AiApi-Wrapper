@@ -1,5 +1,4 @@
 import type { FastifyInstance } from "fastify";
-import { GatewayError } from "@ai-gateway/core/errors";
 import { requireApiAuth } from "../middleware/auth.js";
 import { executeStreamWithFallback, executeWithFallback } from "../router/fallback.js";
 import { normalizeRequest } from "../router/normalize-request.js";
@@ -117,7 +116,7 @@ function createOpenAICompatibleFilter(includeUsage: boolean): TransformStream<Ui
     pendingUsage = null;
   }
 
-  function processLine(line: string, controller: TransformStreamDefaultController<any>, isFlush: boolean) {
+  function processLine(line: string, controller: TransformStreamDefaultController<any>) {
     if (!line.startsWith("data: ")) {
       return;
     }
@@ -176,14 +175,14 @@ function createOpenAICompatibleFilter(includeUsage: boolean): TransformStream<Ui
       lineBuffer = lines.pop() ?? "";
 
       for (const line of lines) {
-        processLine(line, controller, false);
+        processLine(line, controller);
       }
     },
 
     flush(controller) {
       // Process any remaining data in the buffer on stream end
       if (lineBuffer.length > 0) {
-        processLine(lineBuffer, controller, true);
+        processLine(lineBuffer, controller);
         lineBuffer = "";
       }
       // If stream ended without [DONE], still emit pending usage
@@ -223,7 +222,7 @@ export async function chatCompletionRoutes(app: FastifyInstance): Promise<void> 
           reply.raw.write(value);
         }
         reply.raw.end();
-      } catch (error) {
+      } catch {
         try {
           reply.raw.end();
         } catch {

@@ -50,7 +50,7 @@ apiKey: "any-local-value-or-your-generated-key"`;
 
 function CodeBlock({ children }: { children: string }) {
   return (
-    <pre className="overflow-x-auto rounded-xl border border-zinc-800 bg-zinc-950 p-4 text-xs leading-6 text-zinc-200">
+    <pre className="overflow-x-auto rounded-xl border border-white/[0.06] bg-[#111111] p-4 text-xs leading-6 text-zinc-200">
       <code>{children}</code>
     </pre>
   );
@@ -67,7 +67,7 @@ export default function DocsPage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
           <Card>
             <CardHeader><CardTitle>Base URL</CardTitle></CardHeader>
             <CardContent>
@@ -115,7 +115,7 @@ export default function DocsPage() {
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <Card>
             <CardHeader><CardTitle>Chat completion</CardTitle></CardHeader>
             <CardContent><CodeBlock>{nonStreamingCurl}</CodeBlock></CardContent>

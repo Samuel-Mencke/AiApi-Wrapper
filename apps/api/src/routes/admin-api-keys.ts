@@ -1,4 +1,4 @@
-import { and, eq, ne } from "drizzle-orm";
+import { eq, ne } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { nanoid } from "nanoid";
 import { z } from "zod";

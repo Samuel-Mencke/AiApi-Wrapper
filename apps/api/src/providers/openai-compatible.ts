@@ -35,14 +35,15 @@ function headers(config: ProviderConfig): HeadersInit {
   return value;
 }
 
-function body(request: InternalChatRequest, target: ModelRouteTarget, stream: boolean, providerName?: string): Record<string, unknown> {
+function body(request: InternalChatRequest, target: ModelRouteTarget, stream: boolean): Record<string, unknown> {
   const result: Record<string, unknown> = {
     model: target.model,
     messages: request.messages.map((message) => ({
       role: message.role,
       content: message.content,
       name: message.name,
-      tool_call_id: message.toolCallId
+      tool_call_id: message.toolCallId,
+      tool_calls: message.toolCalls
     })),
     temperature: request.temperature,
     max_tokens: request.maxTokens,
@@ -84,7 +85,7 @@ export function createOpenAiCompatibleAdapter(name: string): ProviderAdapter {
       const response = await fetch(url, {
         method: "POST",
         headers: headers(config),
-        body: JSON.stringify(body(request, target, false, config.name)),
+        body: JSON.stringify(body(request, target, false)),
         signal: AbortSignal.timeout(60_000)
       }).catch((error: unknown) => {
         throw new GatewayError(error instanceof Error ? error.message : "Provider network error", {
@@ -122,7 +123,7 @@ export function createOpenAiCompatibleAdapter(name: string): ProviderAdapter {
       const response = await fetch(url, {
         method: "POST",
         headers: headers(config),
-        body: JSON.stringify(body(request, target, true, config.name)),
+        body: JSON.stringify(body(request, target, true)),
         signal: AbortSignal.timeout(60_000)
       }).catch((error: unknown) => {
         throw new GatewayError(error instanceof Error ? error.message : "Provider network error", {

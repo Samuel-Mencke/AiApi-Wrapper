@@ -57,3 +57,57 @@ export const quotaSettings = sqliteTable("quota_settings", {
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull()
 });
+
+export const chatThreads = sqliteTable("chat_threads", {
+  id: text("id").primaryKey(),
+  userId: text("user_id"),
+  adminSessionId: text("admin_session_id"),
+  title: text("title").notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+  archivedAt: text("archived_at")
+});
+
+export const chatMessages = sqliteTable("chat_messages", {
+  id: text("id").primaryKey(),
+  threadId: text("thread_id").notNull(),
+  role: text("role").notNull(),
+  contentText: text("content_text").notNull(),
+  contentBlocksJson: text("content_blocks_json").notNull().default('{"blocks":[]}'),
+  modelAlias: text("model_alias"),
+  provider: text("provider"),
+  realModel: text("real_model"),
+  metadataJson: text("metadata_json").notNull().default("{}"),
+  createdAt: text("created_at").notNull()
+});
+
+export const chatRuns = sqliteTable("chat_runs", {
+  id: text("id").primaryKey(),
+  threadId: text("thread_id").notNull(),
+  status: text("status").notNull(),
+  modelAlias: text("model_alias").notNull(),
+  provider: text("provider"),
+  realModel: text("real_model"),
+  startedAt: text("started_at").notNull(),
+  completedAt: text("completed_at"),
+  latencyMs: integer("latency_ms"),
+  inputTokens: integer("input_tokens"),
+  outputTokens: integer("output_tokens"),
+  totalTokens: integer("total_tokens"),
+  estimatedCost: real("estimated_cost"),
+  error: text("error")
+});
+
+export const chatSteps = sqliteTable("chat_steps", {
+  id: text("id").primaryKey(),
+  runId: text("run_id").notNull(),
+  messageId: text("message_id"),
+  type: text("type").notNull(),
+  name: text("name").notNull(),
+  inputJson: text("input_json").notNull().default("{}"),
+  outputJson: text("output_json").notNull().default("{}"),
+  startedAt: text("started_at").notNull(),
+  completedAt: text("completed_at"),
+  latencyMs: integer("latency_ms"),
+  status: text("status").notNull()
+});

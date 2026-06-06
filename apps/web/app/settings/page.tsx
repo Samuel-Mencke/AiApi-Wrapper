@@ -52,7 +52,7 @@ export default function SettingsPage() {
           <h1 className="text-2xl font-semibold text-zinc-100">Settings</h1>
           <p className="mt-1 text-sm text-zinc-500">Runtime config and environment health.</p>
         </div>
-        {error ? <div className="text-sm text-red-300">{error}</div> : null}
+        {error ? <div className="text-sm text-[#ff9aad]">{error}</div> : null}
         <Card>
           <CardHeader><CardTitle>Environment</CardTitle></CardHeader>
           <CardContent>
@@ -90,7 +90,7 @@ export default function SettingsPage() {
                   </tbody>
                 </Table>
                 {quota.lastQuotaEvent ? (
-                  <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+                  <div className="rounded-xl border border-white/[0.06] bg-[#111111] p-4">
                     <div className="text-sm font-medium text-zinc-100">Last quota event</div>
                     <div className="mt-2 grid grid-cols-2 gap-3 text-sm text-zinc-400">
                       <div>Time: {quota.lastQuotaEvent.createdAt}</div>
@@ -103,7 +103,7 @@ export default function SettingsPage() {
                 ) : null}
                 <div className="space-y-2 text-sm text-zinc-500">
                   {quota.notes.map((note) => <p key={note}>{note}</p>)}
-                  <a className="text-blue-300 hover:text-blue-200" href="https://z.ai/manage-apikey/subscription" target="_blank" rel="noreferrer">
+                  <a className="text-zinc-300 hover:text-zinc-100" href="https://z.ai/manage-apikey/subscription" target="_blank" rel="noreferrer">
                     Open Z.ai usage statistics
                   </a>
                 </div>

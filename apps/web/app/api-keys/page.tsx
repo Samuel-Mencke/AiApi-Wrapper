@@ -48,19 +48,19 @@ export default function ApiKeysPage() {
           <h1 className="text-2xl font-semibold text-zinc-100">API Keys</h1>
           <p className="mt-1 text-sm text-zinc-500">Gateway keys are hashed at rest and revealed only on creation.</p>
         </div>
-        {error ? <div className="text-sm text-red-300">{error}</div> : null}
+        {error ? <div className="text-sm text-[#ff9aad]">{error}</div> : null}
         {newKey ? (
-          <Card className="border-blue-500/30">
+          <Card>
             <CardContent>
-              <div className="text-sm font-medium text-blue-100">New key</div>
-              <div className="mt-2 rounded-xl border border-zinc-800 bg-zinc-950 p-3 font-mono text-sm text-zinc-100">{newKey}</div>
+              <div className="text-sm font-medium text-zinc-100">New key</div>
+              <div className="mt-2 rounded-xl border border-white/[0.06] bg-[#111111] p-3 font-mono text-sm text-zinc-100">{newKey}</div>
             </CardContent>
           </Card>
         ) : null}
         <Card>
           <CardHeader><CardTitle>Create key</CardTitle></CardHeader>
           <CardContent>
-            <form className="grid grid-cols-[1fr_220px_auto] gap-3" onSubmit={form.handleSubmit(create)}>
+            <form className="grid grid-cols-1 gap-3 xl:grid-cols-[1fr_220px_auto]" onSubmit={form.handleSubmit(create)}>
               <Input placeholder="Name" {...form.register("name")} />
               <Input placeholder="Monthly limit" type="number" {...form.register("monthlyLimit")} />
               <Button><KeyRound className="h-4 w-4" /> Create</Button>

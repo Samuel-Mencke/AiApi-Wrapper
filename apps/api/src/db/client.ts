@@ -70,5 +70,58 @@ export function migrate(): void {
       updated_at TEXT NOT NULL,
       UNIQUE(provider, model_alias)
     );
+    CREATE TABLE IF NOT EXISTS chat_threads (
+      id TEXT PRIMARY KEY,
+      user_id TEXT,
+      admin_session_id TEXT,
+      title TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      archived_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS chat_messages (
+      id TEXT PRIMARY KEY,
+      thread_id TEXT NOT NULL,
+      role TEXT NOT NULL,
+      content_text TEXT NOT NULL,
+      content_blocks_json TEXT NOT NULL DEFAULT '{"blocks":[]}',
+      model_alias TEXT,
+      provider TEXT,
+      real_model TEXT,
+      metadata_json TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS chat_runs (
+      id TEXT PRIMARY KEY,
+      thread_id TEXT NOT NULL,
+      status TEXT NOT NULL,
+      model_alias TEXT NOT NULL,
+      provider TEXT,
+      real_model TEXT,
+      started_at TEXT NOT NULL,
+      completed_at TEXT,
+      latency_ms INTEGER,
+      input_tokens INTEGER,
+      output_tokens INTEGER,
+      total_tokens INTEGER,
+      estimated_cost REAL,
+      error TEXT
+    );
+    CREATE TABLE IF NOT EXISTS chat_steps (
+      id TEXT PRIMARY KEY,
+      run_id TEXT NOT NULL,
+      message_id TEXT,
+      type TEXT NOT NULL,
+      name TEXT NOT NULL,
+      input_json TEXT NOT NULL DEFAULT '{}',
+      output_json TEXT NOT NULL DEFAULT '{}',
+      started_at TEXT NOT NULL,
+      completed_at TEXT,
+      latency_ms INTEGER,
+      status TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_chat_messages_thread_created ON chat_messages(thread_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_chat_runs_thread_started ON chat_runs(thread_id, started_at);
+    CREATE INDEX IF NOT EXISTS idx_chat_steps_run_started ON chat_steps(run_id, started_at);
   `);
 }

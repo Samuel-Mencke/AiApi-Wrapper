@@ -47,11 +47,11 @@ export default function ModelsPage() {
           <h1 className="text-2xl font-semibold text-zinc-100">Models</h1>
           <p className="mt-1 text-sm text-zinc-500">Friendly aliases mapped to provider models and fallback routes.</p>
         </div>
-        {error ? <div className="text-sm text-red-300">{error}</div> : null}
+        {error ? <div className="text-sm text-[#ff9aad]">{error}</div> : null}
         <Card>
           <CardHeader><CardTitle>Add model alias</CardTitle></CardHeader>
           <CardContent>
-            <form className="grid grid-cols-[1fr_1fr_1fr_auto] gap-3" onSubmit={form.handleSubmit(create)}>
+            <form className="grid grid-cols-1 gap-3 xl:grid-cols-[1fr_1fr_1fr_auto]" onSubmit={form.handleSubmit(create)}>
               <Input placeholder="Alias" {...form.register("alias")} />
               <Input placeholder="Provider" {...form.register("provider")} />
               <Input placeholder="Real model" {...form.register("realModel")} />

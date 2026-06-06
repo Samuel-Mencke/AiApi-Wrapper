@@ -60,19 +60,19 @@ export function ProviderStatusCard({
   }
 
   return (
-    <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
+    <div className="rounded-xl border border-white/[0.06] bg-[#181818] p-5">
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="font-medium text-zinc-100">{provider.name}</div>
           <div className="mt-1 text-sm text-zinc-500">{provider.baseUrl ?? "Default provider endpoint"}</div>
         </div>
-        <Badge className={provider.enabled ? "border-blue-500/30 text-blue-200" : "border-zinc-700 text-zinc-500"}>
+        <Badge className={provider.enabled ? "border-[#3ddc97]/30 bg-[#3ddc97]/10 text-[#82efbf]" : "border-white/[0.06] text-zinc-500"}>
           {provider.enabled ? "Enabled" : "Disabled"}
         </Badge>
       </div>
 
       {result ? (
-        <div className={`mt-4 rounded-xl border p-3 text-sm ${result.ok ? "border-green-500/30 bg-green-500/5 text-green-200" : "border-red-500/30 bg-red-500/5 text-red-200"}`}>
+        <div className={`mt-4 rounded-xl border p-3 text-sm ${result.ok ? "border-[#3ddc97]/30 bg-[#3ddc97]/10 text-[#82efbf]" : "border-[#ff5c7a]/30 bg-[#ff5c7a]/10 text-[#ff9aad]"}`}>
           <div className="flex items-center gap-2">
             <Zap className="h-4 w-4" />
             <span className="font-medium">{result.ok ? "Success" : "Failed"}</span>
@@ -80,7 +80,7 @@ export function ProviderStatusCard({
               <span className="ml-auto text-xs text-zinc-400">{result.latencyMs}ms</span>
             )}
           </div>
-          <div className="mt-1 text-xs text-zinc-400 break-all">{result.message}</div>
+          <div className="mt-1 break-all text-xs text-zinc-400">{result.message}</div>
         </div>
       ) : null}
 

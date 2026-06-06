@@ -92,6 +92,7 @@ interface Stats {
   usageByApiKeyModel: UsageAggregate[];
   usageByModel: UsageAggregate[];
   usageByProvider: UsageAggregate[];
+  chatUsage: UsageAggregate;
   quotaWindows: QuotaWindow[];
   topStats: {
     mostUsedModel: UsageAggregate | null;
@@ -522,6 +523,37 @@ export default function DashboardPage() {
             >
               Z.ai usage
             </a>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="bg-[#141414]">
+        <CardHeader className="flex flex-row items-center justify-between gap-3">
+          <CardTitle>Dashboard Chat API</CardTitle>
+          <Badge>{stats.chatUsage.label}</Badge>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+            <div>
+              <div className="text-xs text-zinc-500">Requests</div>
+              <div className="mt-1 text-lg font-semibold text-zinc-100">{formatNumber(stats.chatUsage.requests)}</div>
+            </div>
+            <div>
+              <div className="text-xs text-zinc-500">Input tokens</div>
+              <div className="mt-1 text-lg font-semibold text-zinc-100">{formatNumber(stats.chatUsage.inputTokens)}</div>
+            </div>
+            <div>
+              <div className="text-xs text-zinc-500">Output tokens</div>
+              <div className="mt-1 text-lg font-semibold text-zinc-100">{formatNumber(stats.chatUsage.outputTokens)}</div>
+            </div>
+            <div>
+              <div className="text-xs text-zinc-500">Avg latency</div>
+              <div className="mt-1 text-lg font-semibold text-zinc-100">{formatNumber(stats.chatUsage.averageLatencyMs)} ms</div>
+            </div>
+            <div>
+              <div className="text-xs text-zinc-500">Cost</div>
+              <div className="mt-1 text-lg font-semibold text-zinc-100">{usd(stats.chatUsage.estimatedCost)}</div>
+            </div>
           </div>
         </CardContent>
       </Card>

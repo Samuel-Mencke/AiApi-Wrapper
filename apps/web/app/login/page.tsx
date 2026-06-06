@@ -42,11 +42,11 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-zinc-950 p-6">
+    <main className="flex min-h-screen items-center justify-center p-6">
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900">
-            <LockKeyhole className="h-5 w-5 text-blue-300" />
+          <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl border border-white/[0.06] bg-[#1f1f22]">
+            <LockKeyhole className="h-5 w-5 text-zinc-300" />
           </div>
           <CardTitle>Admin login</CardTitle>
         </CardHeader>
@@ -60,7 +60,7 @@ export default function LoginPage() {
               type="password"
               autoComplete="current-password"
             />
-            {error ? <div className="text-sm text-red-300">{error}</div> : null}
+            {error ? <div className="text-sm text-[#ff9aad]">{error}</div> : null}
             <Button className="w-full" disabled={loading}>
               <LogIn className="h-4 w-4" />
               {loading ? "Signing in..." : "Sign in"}

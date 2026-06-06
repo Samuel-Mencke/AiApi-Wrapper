@@ -5,6 +5,7 @@ export interface InternalMessage {
   content: string | Array<Record<string, unknown>> | null;
   name?: string;
   toolCallId?: string;
+  toolCalls?: unknown[];
 }
 
 export interface InternalChatRequest {

@@ -3,7 +3,7 @@ import type { FastifyInstance } from "fastify";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { db } from "../db/client.js";
-import { modelRoutes, providers, requests } from "../db/schema.js";
+import { modelRoutes, requests } from "../db/schema.js";
 import { requireAdminAuth } from "../middleware/auth.js";
 import { anthropicAdapter } from "../providers/anthropic.js";
 import { geminiAdapter } from "../providers/gemini.js";
@@ -12,7 +12,6 @@ import { openAiAdapter } from "../providers/openai.js";
 import { openRouterAdapter } from "../providers/openrouter.js";
 import type { ProviderAdapter } from "../providers/types.js";
 import { getProviderConfig, resolveModel } from "../router/resolve-model.js";
-import { env } from "../env.js";
 
 const routeBody = z.object({
   alias: z.string().min(1),
