@@ -26,6 +26,7 @@ const quotaPatchBody = z.object({
 const PROVIDER_QUOTA_ALIAS = "__provider__";
 
 type RequestRow = typeof requests.$inferSelect;
+type QuotaSettingRow = typeof quotaSettings.$inferSelect;
 
 interface UsageAggregate {
   id: string;
@@ -164,7 +165,7 @@ export async function adminStatsRoutes(app: FastifyInstance): Promise<void> {
   app.get("/admin/stats", { preHandler: requireAdminAuth }, async () => {
     ensureQuotaSettings();
     ensureInternalChatApiKey();
-    const allRequests = db.select().from(requests).all();
+    const allRequests: RequestRow[] = db.select().from(requests).all();
     const activeProviders = db.select().from(providers).all().filter((provider) => provider.enabled).length;
     const keyNames = apiKeyNameMap();
     const today = startOfToday();
@@ -277,7 +278,7 @@ export async function adminStatsRoutes(app: FastifyInstance): Promise<void> {
     }
     const chatUsage = finalizeUsage(usageByApiKey.get(CHAT_API_KEY_ID)!);
     const apiKeyUsage = Array.from(usageByApiKey.values()).map(finalizeUsage).sort((a, b) => b.requests - a.requests);
-    const allQuotaRows = db.select().from(quotaSettings).all();
+    const allQuotaRows: QuotaSettingRow[] = db.select().from(quotaSettings).all();
     const providerQuotaProviders = new Set(
       allQuotaRows
         .filter((setting) => setting.modelAlias === PROVIDER_QUOTA_ALIAS)
@@ -368,9 +369,9 @@ export async function adminStatsRoutes(app: FastifyInstance): Promise<void> {
 
   app.get("/admin/quota-settings", { preHandler: requireAdminAuth }, async () => {
     ensureQuotaSettings();
-    const rows = db.select().from(quotaSettings).all();
+    const rows: QuotaSettingRow[] = db.select().from(quotaSettings).all();
     return {
-      data: rows.map((row) => ({
+      data: rows.map((row: QuotaSettingRow) => ({
         ...row,
         enabled: Boolean(row.enabled)
       }))
@@ -381,7 +382,7 @@ export async function adminStatsRoutes(app: FastifyInstance): Promise<void> {
     ensureQuotaSettings();
     const body = quotaPatchBody.parse(request.body);
     const now = new Date().toISOString();
-    let rows = db.select().from(quotaSettings).all().filter((setting) => {
+    let rows: QuotaSettingRow[] = db.select().from(quotaSettings).all().filter((setting: QuotaSettingRow) => {
       if (setting.provider !== body.provider) return false;
       return body.modelAlias ? setting.modelAlias === body.modelAlias : setting.modelAlias === PROVIDER_QUOTA_ALIAS;
     });
@@ -399,7 +400,7 @@ export async function adminStatsRoutes(app: FastifyInstance): Promise<void> {
         createdAt: now,
         updatedAt: now
       }).run();
-      rows = db.select().from(quotaSettings).all().filter((setting) =>
+      rows = db.select().from(quotaSettings).all().filter((setting: QuotaSettingRow) =>
         setting.provider === body.provider && setting.modelAlias === PROVIDER_QUOTA_ALIAS
       );
     }
@@ -418,7 +419,7 @@ export async function adminStatsRoutes(app: FastifyInstance): Promise<void> {
     }
 
     return {
-      data: db.select().from(quotaSettings).all().map((row) => ({
+      data: db.select().from(quotaSettings).all().map((row: QuotaSettingRow) => ({
         ...row,
         enabled: Boolean(row.enabled)
       }))
@@ -439,14 +440,14 @@ export async function adminStatsRoutes(app: FastifyInstance): Promise<void> {
   }));
 
   app.get("/admin/quota", { preHandler: requireAdminAuth }, async () => {
-    const allRequests = db.select().from(requests).all();
+    const allRequests: RequestRow[] = db.select().from(requests).all();
     const quotaError = allRequests
-      .filter((request) => {
+      .filter((request: RequestRow) => {
         const text = `${request.errorCode ?? ""} ${request.errorMessage ?? ""}`.toLowerCase();
         return request.provider === "z-ai" && (request.status === "error") &&
           (text.includes("quota") || text.includes("limit") || text.includes("rate") || text.includes("429"));
       })
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+      .sort((a: RequestRow, b: RequestRow) => b.createdAt.localeCompare(a.createdAt))[0];
 
     const estimatedFiveHourResetAt = quotaError
       ? new Date(new Date(quotaError.createdAt).getTime() + 5 * 60 * 60 * 1000).toISOString()
