@@ -43,48 +43,95 @@ export function responseToolsToChatTools(tools: unknown[] | undefined): unknown[
     return undefined;
   }
 
-  return tools.map((tool) => {
+  const converted: unknown[] = [];
+
+  for (const tool of tools) {
     if (!tool || typeof tool !== "object") {
-      return tool;
+      continue;
     }
 
     const value = tool as Record<string, unknown>;
-    if (value.type === "function" && value.function) {
-      return tool;
-    }
+
+    // Z.ai Chat Completions accepts only normal function tools.
+    // Responses-only types such as custom, namespace, tool_search,
+    // web_search and image_generation must not be forwarded directly.
     if (value.type !== "function") {
-      return tool;
+      continue;
     }
 
-    return {
+    const source = (
+      value.function && typeof value.function === "object"
+        ? value.function
+        : value
+    ) as Record<string, unknown>;
+
+    const name =
+      typeof source.name === "string"
+        ? source.name.trim()
+        : "";
+
+    if (!name) {
+      continue;
+    }
+
+    converted.push({
       type: "function",
       function: {
-        name: value.name,
-        description: value.description,
-        parameters: value.parameters,
-        strict: value.strict
+        name,
+        description:
+          typeof source.description === "string"
+            ? source.description
+            : "",
+        parameters:
+          source.parameters && typeof source.parameters === "object"
+            ? source.parameters
+            : {
+                type: "object",
+                properties: {}
+              }
       }
-    };
-  });
+    });
+  }
+
+  return converted.length > 0 ? converted : undefined;
 }
 
+
 export function responseToolChoiceToChatToolChoice(toolChoice: unknown): unknown {
-  if (!toolChoice || typeof toolChoice !== "object") {
+  if (toolChoice === undefined || toolChoice === null) {
+    return undefined;
+  }
+
+  if (
+    toolChoice === "auto"
+    || toolChoice === "none"
+    || toolChoice === "required"
+  ) {
     return toolChoice;
   }
 
+  if (typeof toolChoice !== "object") {
+    return "auto";
+  }
+
   const value = toolChoice as Record<string, unknown>;
-  if (value.type !== "function" || !value.name) {
-    return toolChoice;
+
+  if (
+    value.type !== "function"
+    || typeof value.name !== "string"
+    || value.name.trim().length === 0
+  ) {
+    return "auto";
   }
 
   return {
     type: "function",
     function: {
-      name: value.name
+      name: value.name.trim()
     }
   };
 }
+
 
 export function responseInputItemsToMessages(items: unknown[], instructions?: string | null): InternalMessage[] {
   const messages: InternalMessage[] = [];
@@ -385,12 +432,39 @@ function outputText(output: unknown[]): string {
   }).join("");
 }
 
-function responseExtraBody(request: Record<string, unknown>): Record<string, unknown> | undefined {
+function responseExtraBody(
+  request: Record<string, unknown>
+): Record<string, unknown> | undefined {
   const extra: Record<string, unknown> = {};
-  for (const key of ["reasoning", "max_tool_calls", "service_tier", "truncation"]) {
-    if (request[key] !== undefined) {
-      extra[key] = request[key];
-    }
+
+  const reasoning =
+    request.reasoning
+    && typeof request.reasoning === "object"
+      ? request.reasoning as Record<string, unknown>
+      : undefined;
+
+  const effort =
+    typeof reasoning?.effort === "string"
+      ? reasoning.effort
+      : undefined;
+
+  /*
+   * Translate Codex reasoning settings to Z.AI's
+   * native thinking configuration.
+   */
+  if (effort === "none") {
+    extra.thinking = {
+      type: "disabled"
+    };
+  } else if (effort) {
+    extra.thinking = {
+      type: "enabled"
+    };
+  } else if (request.thinking !== undefined) {
+    extra.thinking = request.thinking;
   }
-  return Object.keys(extra).length > 0 ? extra : undefined;
+
+  return Object.keys(extra).length > 0
+    ? extra
+    : undefined;
 }
