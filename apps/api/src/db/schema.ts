@@ -31,6 +31,7 @@ export const modelRoutes = sqliteTable("model_routes", {
 
 export const requests = sqliteTable("requests", {
   id: text("id").primaryKey(),
+  requestId: text("request_id"),
   apiKeyId: text("api_key_id"),
   modelAlias: text("model_alias").notNull(),
   provider: text("provider").notNull(),
@@ -110,4 +111,29 @@ export const chatSteps = sqliteTable("chat_steps", {
   completedAt: text("completed_at"),
   latencyMs: integer("latency_ms"),
   status: text("status").notNull()
+});
+
+export const storedResponses = sqliteTable("responses", {
+  id: text("id").primaryKey(),
+  apiKeyId: text("api_key_id"),
+  modelAlias: text("model_alias").notNull(),
+  provider: text("provider"),
+  realModel: text("real_model"),
+  status: text("status").notNull(),
+  requestJson: text("request_json").notNull(),
+  responseJson: text("response_json").notNull(),
+  inputTokens: integer("input_tokens"),
+  outputTokens: integer("output_tokens"),
+  totalTokens: integer("total_tokens"),
+  createdAt: text("created_at").notNull(),
+  completedAt: text("completed_at"),
+  deletedAt: text("deleted_at")
+});
+
+export const responseInputItems = sqliteTable("response_input_items", {
+  id: text("id").primaryKey(),
+  responseId: text("response_id").notNull(),
+  itemIndex: integer("item_index").notNull(),
+  itemJson: text("item_json").notNull(),
+  createdAt: text("created_at").notNull()
 });

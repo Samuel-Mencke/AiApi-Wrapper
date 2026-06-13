@@ -12,7 +12,8 @@ import { listChatTools } from "../chat/tools.js";
 const runBody = z.object({
   threadId: z.string().optional(),
   content: z.string().min(1),
-  modelAlias: z.string().min(1)
+  modelAlias: z.string().min(1),
+  webSearch: z.boolean().optional()
 });
 
 export async function adminChatRoutes(app: FastifyInstance): Promise<void> {
@@ -68,7 +69,7 @@ export async function adminChatRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.get("/admin/chat/tools", { preHandler: requireAdminAuth }, async () => ({
-    data: listChatTools().map((tool) => ({
+    data: listChatTools({ webSearchEnabled: true }).map((tool) => ({
       name: tool.name,
       description: tool.description,
       enabled: tool.enabled,

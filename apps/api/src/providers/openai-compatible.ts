@@ -35,6 +35,16 @@ function headers(config: ProviderConfig): HeadersInit {
   return value;
 }
 
+function providerNetworkError(error: unknown): GatewayError {
+  const message = error instanceof Error ? error.message : "Provider network error";
+  const isTimeout = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
+  return new GatewayError(message, {
+    code: isTimeout ? "provider_timeout" : "provider_network_error",
+    statusCode: isTimeout ? 504 : 502,
+    retryable: true
+  });
+}
+
 function body(request: InternalChatRequest, target: ModelRouteTarget, stream: boolean): Record<string, unknown> {
   const result: Record<string, unknown> = {
     model: target.model,
@@ -43,18 +53,30 @@ function body(request: InternalChatRequest, target: ModelRouteTarget, stream: bo
       content: message.content,
       name: message.name,
       tool_call_id: message.toolCallId,
-      tool_calls: message.toolCalls
+      tool_calls: message.toolCalls,
+      reasoning_content: message.reasoningContent,
+      thinking_content: message.thinkingContent
     })),
     temperature: request.temperature,
+    top_p: request.topP,
     max_tokens: request.maxTokens,
+    max_completion_tokens: request.maxCompletionTokens,
+    stop: request.stop,
+    n: request.n,
+    seed: request.seed,
     tools: request.tools,
+    tool_choice: request.toolChoice,
+    parallel_tool_calls: request.parallelToolCalls,
+    response_format: request.responseFormat,
     stream_options: request.streamOptions,
     stream
   };
 
   // Forward extra_body fields (e.g. thinking, reasoning for Z.ai/GLM)
   if (request.extraBody && typeof request.extraBody === "object") {
-    Object.assign(result, request.extraBody);
+    const forwardableExtraBody = { ...request.extraBody } as Record<string, unknown>;
+    delete forwardableExtraBody.gateway;
+    Object.assign(result, forwardableExtraBody);
   }
 
   return result;
@@ -88,11 +110,7 @@ export function createOpenAiCompatibleAdapter(name: string): ProviderAdapter {
         body: JSON.stringify(body(request, target, false)),
         signal: AbortSignal.timeout(60_000)
       }).catch((error: unknown) => {
-        throw new GatewayError(error instanceof Error ? error.message : "Provider network error", {
-          code: "provider_network_error",
-          statusCode: 502,
-          retryable: true
-        });
+        throw providerNetworkError(error);
       });
 
       if (!response.ok) {
@@ -101,15 +119,20 @@ export function createOpenAiCompatibleAdapter(name: string): ProviderAdapter {
 
       const json = (await response.json()) as {
         id?: string;
-        choices?: Array<{ message?: { content?: unknown } }>;
+        choices?: Array<{ message?: { content?: unknown; reasoning_content?: unknown; thinking_content?: unknown; tool_calls?: unknown[] }; finish_reason?: string | null }>;
         usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
       };
+      const message = json.choices?.[0]?.message;
 
       return {
         id: json.id ?? `gw-${Date.now()}`,
         provider: config.name,
         model: target.model,
-        content: json.choices?.[0]?.message?.content ?? "",
+        content: message?.content ?? "",
+        reasoningText: typeof message?.reasoning_content === "string" ? message.reasoning_content : undefined,
+        thinkingText: typeof message?.thinking_content === "string" ? message.thinking_content : undefined,
+        toolCalls: message?.tool_calls,
+        finishReason: json.choices?.[0]?.finish_reason,
         usage: {
           inputTokens: json.usage?.prompt_tokens,
           outputTokens: json.usage?.completion_tokens,
@@ -126,11 +149,7 @@ export function createOpenAiCompatibleAdapter(name: string): ProviderAdapter {
         body: JSON.stringify(body(request, target, true)),
         signal: AbortSignal.timeout(60_000)
       }).catch((error: unknown) => {
-        throw new GatewayError(error instanceof Error ? error.message : "Provider network error", {
-          code: "provider_network_error",
-          statusCode: 502,
-          retryable: true
-        });
+        throw providerNetworkError(error);
       });
 
       if (!response.ok) {

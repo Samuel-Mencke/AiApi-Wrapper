@@ -1,9 +1,9 @@
 import crypto from "node:crypto";
 import type { FastifyReply, FastifyRequest } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq, gte } from "drizzle-orm";
 import { GatewayError } from "@ai-gateway/core/errors";
 import { db } from "../db/client.js";
-import { apiKeys } from "../db/schema.js";
+import { apiKeys, requests } from "../db/schema.js";
 import { env } from "../env.js";
 
 export interface AuthContext {
@@ -68,6 +68,17 @@ export function verifyAdminPassword(password: string): boolean {
   return timingSafeEqual(actual, expected);
 }
 
+function startOfCurrentMonth(): string {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+}
+
+function secondsUntilNextMonth(): number {
+  const now = new Date();
+  const nextMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+  return Math.max(1, Math.ceil((nextMonth.getTime() - Date.now()) / 1000));
+}
+
 export function setAdminSession(reply: FastifyReply): void {
   const expiresAt = Date.now() + SESSION_TTL_SECONDS * 1000;
   const payload = base64Url(JSON.stringify({ sub: env.ADMIN_USERNAME, exp: expiresAt }));
@@ -124,6 +135,21 @@ export async function requireApiAuth(request: FastifyRequest): Promise<void> {
       code: "invalid_api_key",
       statusCode: 401
     });
+  }
+
+  if (key.monthlyLimit !== null && key.monthlyLimit !== undefined) {
+    const usedThisMonth = db.select()
+      .from(requests)
+      .where(and(eq(requests.apiKeyId, key.id), gte(requests.createdAt, startOfCurrentMonth())))
+      .all().length;
+
+    if (usedThisMonth >= key.monthlyLimit) {
+      throw new GatewayError("Monthly API key request limit exceeded", {
+        code: "rate_limit_exceeded",
+        statusCode: 429,
+        retryAfter: secondsUntilNextMonth()
+      });
+    }
   }
 
   db.update(apiKeys).set({ lastUsedAt: new Date().toISOString() }).where(eq(apiKeys.id, key.id)).run();

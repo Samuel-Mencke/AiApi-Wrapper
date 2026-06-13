@@ -12,7 +12,7 @@ import { toOpenAiChatResponse } from "../router/normalize-response.js";
  * - Extracts usage from inside choices to top-level
  * - Returns null if chunk contains nothing meaningful
  */
-function sanitizeSSEChunk(parsed: any): any | null {
+function sanitizeSSEChunk(parsed: any, includeReasoning: boolean): any | null {
   // Strip non-standard fields from root
   delete parsed.request_id;
   delete parsed.gateway;
@@ -31,9 +31,11 @@ function sanitizeSSEChunk(parsed: any): any | null {
   for (const choice of choices) {
     const delta = { ...(choice.delta ?? {}) };
 
-    // Strip reasoning fields (Z.ai sends reasoning_content alongside content)
-    delete delta.reasoning_content;
-    delete delta.thinking_content;
+    if (!includeReasoning) {
+      // Strip reasoning fields (Z.ai sends reasoning_content alongside content)
+      delete delta.reasoning_content;
+      delete delta.thinking_content;
+    }
 
     // Extract usage from inside the choice — providers like Z.AI put it there
     if (choice.usage && typeof choice.usage === "object") {
@@ -50,16 +52,20 @@ function sanitizeSSEChunk(parsed: any): any | null {
     }
 
     const hasContent = typeof delta.content === "string" && delta.content.length > 0;
+    const hasReasoning = includeReasoning && (
+      typeof delta.reasoning_content === "string" && delta.reasoning_content.length > 0
+      || typeof delta.thinking_content === "string" && delta.thinking_content.length > 0
+    );
     const hasToolCalls = Array.isArray(delta.tool_calls) && delta.tool_calls.length > 0;
     const hasFunctionCall = Boolean(delta.function_call);
     const hasFinishReason = Boolean(choice.finish_reason);
 
     // For finish_reason-only chunks (no content/tool_calls), strip role — OpenAI sends delta: {}
-    if (hasFinishReason && !hasContent && !hasToolCalls && !hasFunctionCall) {
+    if (hasFinishReason && !hasContent && !hasReasoning && !hasToolCalls && !hasFunctionCall) {
       delete delta.role;
     }
 
-    if (hasContent || hasToolCalls || hasFunctionCall || hasFinishReason) {
+    if (hasContent || hasReasoning || hasToolCalls || hasFunctionCall || hasFinishReason) {
       sanitizedChoices.push({ ...choice, delta });
     }
   }
@@ -80,7 +86,11 @@ function sanitizeSSEChunk(parsed: any): any | null {
  * - Promotes usage from inside choices to top-level
  * - Only emits usage if includeUsage is true, as a separate chunk before [DONE]
  */
-function createOpenAICompatibleFilter(includeUsage: boolean): TransformStream<Uint8Array, Uint8Array> {
+function createOpenAICompatibleFilter(
+  includeUsage: boolean,
+  includeReasoning: boolean,
+  modelAlias: string
+): TransformStream<Uint8Array, Uint8Array> {
   const decoder = new TextDecoder();
   const encoder = new TextEncoder();
   let lineBuffer = "";
@@ -137,7 +147,7 @@ function createOpenAICompatibleFilter(includeUsage: boolean): TransformStream<Ui
       return;
     }
 
-    const sanitized = sanitizeSSEChunk(parsed);
+    const sanitized = sanitizeSSEChunk(parsed, includeReasoning);
     if (!sanitized) {
       return;
     }
@@ -145,7 +155,8 @@ function createOpenAICompatibleFilter(includeUsage: boolean): TransformStream<Ui
     // Capture metadata for the usage chunk
     if (sanitized.id) chunkId = sanitized.id;
     if (sanitized.created) chunkCreated = sanitized.created;
-    if (sanitized.model) chunkModel = sanitized.model;
+    sanitized.model = modelAlias;
+    chunkModel = modelAlias;
 
     // Extract usage from the sanitized chunk
     if (sanitized.usage) {
@@ -194,6 +205,7 @@ function createOpenAICompatibleFilter(includeUsage: boolean): TransformStream<Ui
 export async function chatCompletionRoutes(app: FastifyInstance): Promise<void> {
   app.post("/v1/chat/completions", { preHandler: requireApiAuth }, async (request, reply) => {
     const internal = normalizeRequest(request.body);
+    internal.requestId = request.requestId;
 
     if (internal.stream) {
       const { stream } = await executeStreamWithFallback(internal, request.auth.apiKeyId);
@@ -204,14 +216,16 @@ export async function chatCompletionRoutes(app: FastifyInstance): Promise<void> 
         typeof internal.streamOptions === "object" &&
         (internal.streamOptions as any).include_usage === true
       );
+      const includeReasoning = internal.gateway?.includeReasoning === true;
 
-      const filteredStream = stream.pipeThrough(createOpenAICompatibleFilter(includeUsage));
+      const filteredStream = stream.pipeThrough(createOpenAICompatibleFilter(includeUsage, includeReasoning, internal.modelAlias));
 
       reply.hijack();
       reply.raw.writeHead(200, {
         "Content-Type": "text/event-stream; charset=utf-8",
         "Cache-Control": "no-cache",
-        Connection: "keep-alive"
+        Connection: "keep-alive",
+        "x-request-id": request.requestId
       });
 
       const reader = filteredStream.getReader();

@@ -4,9 +4,11 @@ import { migrate } from "./db/client.js";
 import { env } from "./env.js";
 import { errorHandler } from "./middleware/error-handler.js";
 import { registerRateLimit } from "./middleware/rate-limit.js";
+import { registerRequestId } from "./middleware/request-id.js";
 import { chatCompletionRoutes } from "./routes/chat-completions.js";
 import { healthRoutes } from "./routes/health.js";
 import { modelRoutes } from "./routes/models.js";
+import { responseRoutes } from "./routes/responses.js";
 import { adminAuthRoutes } from "./routes/admin-auth.js";
 import { adminApiKeyRoutes } from "./routes/admin-api-keys.js";
 import { adminLogRoutes } from "./routes/admin-logs.js";
@@ -29,6 +31,7 @@ await app.register(cors, {
   origin: true,
   credentials: true
 });
+await registerRequestId(app);
 await registerRateLimit(app);
 
 migrate();
@@ -42,6 +45,7 @@ await app.register(healthRoutes);
 await app.register(adminAuthRoutes);
 await app.register(modelRoutes);
 await app.register(chatCompletionRoutes);
+await app.register(responseRoutes);
 await app.register(adminStatsRoutes);
 await app.register(adminChatRoutes);
 await app.register(adminProviderRoutes);

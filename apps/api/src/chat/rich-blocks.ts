@@ -135,6 +135,14 @@ function normalizeRawRichBlocks(input: unknown): unknown {
           xKey: value.xKey ?? value.x_key
         };
       }
+      if (value.type === "html" && typeof value.content === "string") {
+        return {
+          type: "code",
+          language: "html",
+          filename: typeof value.title === "string" ? value.title : "legacy-html",
+          content: value.content
+        };
+      }
       return value;
     })
   };

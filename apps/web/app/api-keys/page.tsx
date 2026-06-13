@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { KeyRound } from "lucide-react";
+import { Check, Copy, KeyRound } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { ApiKeyTable, type ApiKeyRow } from "@/components/api-key-table";
@@ -14,12 +14,14 @@ import { apiFetch, type ApiEnvelope } from "@/lib/api";
 
 const schema = z.object({
   name: z.string().min(1),
-  monthlyLimit: z.coerce.number().positive().optional()
+  monthlyLimit: z.preprocess((value) => value === "" ? undefined : value, z.coerce.number().positive().optional())
 });
 
 export default function ApiKeysPage() {
   const [keys, setKeys] = useState<ApiKeyRow[]>([]);
   const [newKey, setNewKey] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [query, setQuery] = useState("");
   const [error, setError] = useState("");
   const form = useForm<z.infer<typeof schema>>({ resolver: zodResolver(schema) });
 
@@ -41,6 +43,17 @@ export default function ApiKeysPage() {
     load();
   }
 
+  async function copyNewKey() {
+    await navigator.clipboard.writeText(newKey);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1600);
+  }
+
+  const filteredKeys = keys.filter((key) => {
+    const text = `${key.name} ${key.enabled ? "enabled" : "disabled"}`.toLowerCase();
+    return text.includes(query.toLowerCase());
+  });
+
   return (
     <PageShell>
       <div className="space-y-6">
@@ -52,8 +65,17 @@ export default function ApiKeysPage() {
         {newKey ? (
           <Card>
             <CardContent>
-              <div className="text-sm font-medium text-zinc-100">New key</div>
-              <div className="mt-2 rounded-xl border border-white/[0.06] bg-[#111111] p-3 font-mono text-sm text-zinc-100">{newKey}</div>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-medium text-zinc-100">New key</div>
+                  <div className="mt-1 text-xs text-zinc-500">Copy it now. It will not be shown again.</div>
+                </div>
+                <Button variant="secondary" onClick={copyNewKey} type="button">
+                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  {copied ? "Copied" : "Copy"}
+                </Button>
+              </div>
+              <div className="mt-3 break-all rounded-lg border border-white/[0.06] bg-[#111111] p-3 font-mono text-sm text-zinc-100">{newKey}</div>
             </CardContent>
           </Card>
         ) : null}
@@ -68,8 +90,17 @@ export default function ApiKeysPage() {
           </CardContent>
         </Card>
         <Card>
+          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle>Manage keys</CardTitle>
+            <Input
+              className="sm:w-72"
+              placeholder="Search keys"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </CardHeader>
           <CardContent>
-            <ApiKeyTable data={keys} onChanged={load} />
+            <ApiKeyTable data={filteredKeys} onChanged={load} />
           </CardContent>
         </Card>
       </div>

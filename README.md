@@ -1,6 +1,6 @@
 # ai-gateway
 
-`ai-gateway` is a self-hosted AI API gateway that exposes configured providers through one OpenAI-compatible API and a local admin dashboard.
+`ai-gateway` is a self-hosted AI API gateway that exposes configured providers through an OpenAI-compatible Chat Completions and Responses API plus a local admin dashboard.
 
 ## Setup
 
@@ -36,12 +36,9 @@ Edit `config/providers.yml` to define providers and model aliases:
 
 ```yaml
 models:
-  fast-coder:
-    provider: openrouter
-    model: qwen/qwen3-coder
-    fallback:
-      - provider: gemini
-        model: gemini-2.5-flash
+  glm5.1:
+    provider: z-ai
+    model: glm-5.1
 ```
 
 The API syncs new YAML providers and routes into SQLite on startup. Admin-created routes live in SQLite.
@@ -66,13 +63,30 @@ docker compose up --build
 
 The compose file mounts `config/providers.yml` and persists SQLite data in the `gateway-data` volume.
 
-## Example Request
+## OpenAI-Compatible API
+
+Implemented public endpoints:
+
+- `GET /health`
+- `GET /v1/models`
+- `GET /v1/models/:model`
+- `POST /v1/chat/completions`
+- `POST /v1/responses`
+- `GET /v1/responses/:response_id`
+- `DELETE /v1/responses/:response_id`
+- `POST /v1/responses/:response_id/cancel`
+- `GET /v1/responses/:response_id/input_items`
+
+The gateway uses OpenAI-style error objects and attaches `x-request-id` to API responses.
+
+## Example Requests
 
 ```bash
 curl http://localhost:18789/v1/chat/completions \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer gw_your_key" \
   -d '{
-    "model": "fast-coder",
+    "model": "glm5.1",
     "messages": [
       { "role": "user", "content": "Write a simple TypeScript function." }
     ],
@@ -83,8 +97,24 @@ curl http://localhost:18789/v1/chat/completions \
 Streaming works for OpenAI-compatible providers:
 
 ```json
-{ "model": "fast-coder", "messages": [{ "role": "user", "content": "Hello" }], "stream": true }
+{ "model": "glm5.1", "messages": [{ "role": "user", "content": "Hello" }], "stream": true }
 ```
+
+Responses API requests work for Codex-style clients:
+
+```bash
+curl http://localhost:18789/v1/responses \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer gw_your_key" \
+  -d '{
+    "model": "glm5-turbo",
+    "instructions": "You are a coding assistant.",
+    "input": "Inspect this error and suggest a fix.",
+    "stream": false
+  }'
+```
+
+Responses streaming emits typed `response.*` server-sent events. Stored responses can be retrieved by ID unless `store` is explicitly set to `false`.
 
 ## Adding A Provider
 

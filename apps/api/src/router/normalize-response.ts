@@ -1,13 +1,13 @@
 import type { InternalChatRequest, ProviderResponse } from "@ai-gateway/core";
 
 /** Strip provider-specific fields from a raw response to make it OpenAI-compatible. */
-function stripProviderFields(raw: Record<string, unknown>): Record<string, unknown> {
+function stripProviderFields(raw: Record<string, unknown>, includeReasoning: boolean): Record<string, unknown> {
   // Strip reasoning fields from choices
   const choices = raw.choices;
   if (Array.isArray(choices)) {
     raw.choices = choices.map((choice: any) => {
       const message = choice.message ?? choice.delta;
-      if (message && typeof message === "object") {
+      if (!includeReasoning && message && typeof message === "object") {
         delete (message as any).reasoning_content;
         delete (message as any).thinking_content;
       }
@@ -34,7 +34,7 @@ function stripProviderFields(raw: Record<string, unknown>): Record<string, unkno
 
 export function toOpenAiChatResponse(request: InternalChatRequest, response: ProviderResponse): unknown {
   if (response.raw && typeof response.raw === "object" && !Array.isArray(response.raw)) {
-    const cleaned = stripProviderFields({ ...(response.raw as Record<string, unknown>) });
+    const cleaned = stripProviderFields({ ...(response.raw as Record<string, unknown>) }, request.gateway?.includeReasoning === true);
     return {
       ...cleaned,
       model: request.modelAlias,
@@ -51,9 +51,12 @@ export function toOpenAiChatResponse(request: InternalChatRequest, response: Pro
         index: 0,
         message: {
           role: "assistant",
-          content: response.content
+          content: response.content,
+          ...(response.toolCalls ? { tool_calls: response.toolCalls } : {}),
+          ...(request.gateway?.includeReasoning && response.reasoningText ? { reasoning_content: response.reasoningText } : {}),
+          ...(request.gateway?.includeReasoning && response.thinkingText ? { thinking_content: response.thinkingText } : {})
         },
-        finish_reason: "stop"
+        finish_reason: response.finishReason ?? (response.toolCalls ? "tool_calls" : "stop")
       }
     ],
     usage: response.usage

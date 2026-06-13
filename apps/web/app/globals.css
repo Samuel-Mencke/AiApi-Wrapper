@@ -2,13 +2,25 @@
 
 :root {
   color-scheme: dark;
+  --bg: #111111;
+  --bg-elevated: #151515;
+  --bg-panel: #18181b;
+  --bg-panel-strong: #242428;
+  --bg-muted: #2a2a2e;
+  --border-subtle: rgba(255, 255, 255, 0.055);
+  --border-strong: rgba(255, 255, 255, 0.095);
+  --text: #f4f4f5;
+  --text-muted: #8b8d98;
+  --text-dim: #5f616b;
+  --accent: #e7e7ea;
 }
 
 body {
   margin: 0;
-  background: #111111;
-  color: #f4f4f5;
+  background: var(--bg);
+  color: var(--text);
   font-family: Arial, Helvetica, sans-serif;
+  text-rendering: geometricPrecision;
 }
 
 * {
@@ -20,4 +32,30 @@ input,
 select,
 textarea {
   font: inherit;
+}
+
+::selection {
+  background: rgba(244, 244, 245, 0.18);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.24);
+  border: 3px solid transparent;
+  background-clip: content-box;
 }

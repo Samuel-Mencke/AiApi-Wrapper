@@ -23,7 +23,7 @@ import {
   XAxis,
   YAxis
 } from "recharts";
-import { Archive, Check, ChevronDown, Clock3, Copy, Menu, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Plus, RotateCcw, Search, Send, Sparkles, Square, X } from "lucide-react";
+import { Archive, BrainCircuit, Check, ChevronDown, Clock3, Copy, Menu, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Plus, RotateCcw, Search, Send, Sparkles, Square, X } from "lucide-react";
 import { API_BASE_URL, apiFetch } from "@/lib/api";
 import { cn, formatDate, formatNumber } from "@/lib/utils";
 import { PageShell } from "@/components/page-shell";
@@ -69,10 +69,12 @@ type RichBlock =
   | { type: "chart"; chartType: "bar" | "line" | "pie" | "scatter"; title?: string; xKey?: string; series: Array<{ dataKey: string; label?: string; valueSuffix?: string }>; data: Array<Record<string, string | number | boolean | null>> }
   | { type: "function_plot"; title?: string; expression: string; points?: Array<{ x: number; y: number }> }
   | { type: "math"; content: string; display?: boolean }
+  | { type: "html"; title?: string; content?: string }
   | { type: "tool_call"; toolName: string; input: Record<string, unknown>; status: string }
   | { type: "tool_result"; toolName: string; summary: string; sources?: Array<{ title: string; url: string }> }
   | { type: "status"; status: string; content?: string }
-  | { type: "error"; message: string; rawJson?: unknown };
+  | { type: "error"; message: string; rawJson?: unknown }
+  | { type: string; [key: string]: unknown };
 
 interface ChatMessage {
   id: string;
@@ -123,7 +125,7 @@ interface ThreadPayload {
   steps: ChatStep[];
 }
 
-const colors = ["#3ddc97", "#58b9ff", "#f4c84a", "#ff5c7a", "#d66dff", "#71e3e8"];
+const colors = ["#4ec85a", "#9ca3af", "#d4d4d8", "#8b8d98", "#71717a", "#52525b"];
 
 function useAutoScroll<T>(dependency: T) {
   const ref = useRef<HTMLDivElement | null>(null);
@@ -137,7 +139,7 @@ function CopyButton({ value }: { value: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <button
-      className="inline-flex h-7 items-center gap-1 rounded-md border border-white/[0.08] bg-white/[0.04] px-2 text-xs text-zinc-300 hover:bg-white/[0.08]"
+      className="inline-flex h-7 items-center gap-1 rounded-md border border-white/[0.07] bg-white/[0.025] px-2 text-xs text-zinc-400 transition hover:bg-white/[0.06] hover:text-zinc-100"
       onClick={async () => {
         await navigator.clipboard.writeText(value);
         setCopied(true);
@@ -152,19 +154,37 @@ function CopyButton({ value }: { value: string }) {
 
 function MarkdownBlock({ content }: { content: string }) {
   return (
-    <div className="prose prose-invert max-w-none prose-pre:bg-transparent prose-pre:p-0 prose-a:text-[#58b9ff] prose-code:text-zinc-100">
+    <div className="chat-markdown max-w-none text-[15px] leading-7 text-zinc-100">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
+          h1: ({ children }) => <h1 className="mb-4 mt-7 text-2xl font-semibold leading-tight text-zinc-50 first:mt-0">{children}</h1>,
+          h2: ({ children }) => <h2 className="mb-3 mt-7 text-xl font-semibold leading-tight text-zinc-50 first:mt-0">{children}</h2>,
+          h3: ({ children }) => <h3 className="mb-2 mt-6 text-base font-semibold leading-snug text-zinc-50 first:mt-0">{children}</h3>,
+          p: ({ children }) => <p className="my-3 first:mt-0 last:mb-0">{children}</p>,
+          ul: ({ children }) => <ul className="my-3 list-disc space-y-1 pl-5">{children}</ul>,
+          ol: ({ children }) => <ol className="my-3 list-decimal space-y-1 pl-5">{children}</ol>,
+          li: ({ children }) => <li className="pl-1">{children}</li>,
+          strong: ({ children }) => <strong className="font-semibold text-zinc-50">{children}</strong>,
+          em: ({ children }) => <em className="text-zinc-200">{children}</em>,
+          blockquote: ({ children }) => <blockquote className="my-4 border-l-2 border-white/[0.16] pl-4 text-zinc-300">{children}</blockquote>,
+          hr: () => <hr className="my-7 border-white/[0.07]" />,
+          table: ({ children }) => <div className="my-4 overflow-x-auto rounded-lg border border-white/[0.075]"><table className="min-w-full border-collapse text-left text-sm">{children}</table></div>,
+          thead: ({ children }) => <thead className="bg-white/[0.035] text-xs text-zinc-400">{children}</thead>,
+          tbody: ({ children }) => <tbody className="divide-y divide-white/[0.055]">{children}</tbody>,
+          tr: ({ children }) => <tr>{children}</tr>,
+          th: ({ children }) => <th className="whitespace-nowrap px-3 py-2 font-semibold text-zinc-200">{children}</th>,
+          td: ({ children }) => <td className="px-3 py-2 align-top text-zinc-300">{children}</td>,
           img: ({ alt }) => <span className="rounded bg-white/[0.06] px-1.5 py-0.5 text-xs text-zinc-400">image blocked{alt ? `: ${alt}` : ""}</span>,
           a: ({ href, children }) => {
             const safe = href?.startsWith("http://") || href?.startsWith("https://");
-            return safe ? <a href={href} target="_blank" rel="noreferrer">{children}</a> : <span>{children}</span>;
+            return safe ? <a className="text-zinc-100 underline decoration-white/30 underline-offset-4 hover:decoration-white/70" href={href} target="_blank" rel="noreferrer">{children}</a> : <span>{children}</span>;
           },
+          pre: ({ children }) => <>{children}</>,
           code: ({ className, children }) => {
             const text = String(children);
             const language = /language-(\w+)/.exec(className ?? "")?.[1];
-            return language ? <CodeBlock language={language} content={text.replace(/\n$/, "")} /> : <code>{children}</code>;
+            return language ? <CodeBlock language={language} content={text.replace(/\n$/, "")} /> : <code className="rounded bg-white/[0.065] px-1.5 py-0.5 text-[0.9em] text-zinc-100">{children}</code>;
           }
         }}
       >
@@ -176,15 +196,15 @@ function MarkdownBlock({ content }: { content: string }) {
 
 function CodeBlock({ language, filename, content }: { language?: string; filename?: string; content: string }) {
   return (
-    <div className="overflow-hidden rounded-lg border border-white/[0.08] bg-[#0f0f10]">
-      <div className="flex items-center justify-between gap-3 border-b border-white/[0.06] px-3 py-2">
+    <div className="my-4 overflow-hidden rounded-lg border border-white/[0.075] bg-[#0f0f10]">
+      <div className="flex items-center justify-between gap-3 border-b border-white/[0.055] px-3 py-2">
         <div className="min-w-0 truncate text-xs text-zinc-500">{filename ?? language ?? "code"}</div>
         <CopyButton value={content} />
       </div>
       <SyntaxHighlighter
         language={language ?? "text"}
         style={oneDark}
-        customStyle={{ margin: 0, background: "transparent", fontSize: 13 }}
+        customStyle={{ margin: 0, background: "transparent", fontSize: 13, lineHeight: 1.65 }}
         PreTag="div"
       >
         {content}
@@ -208,13 +228,13 @@ function TableBlock({ block }: { block: Extract<RichBlock, { type: "table" }> })
     });
   }, [block.rows, direction, filter, sortKey]);
   return (
-    <div className="rounded-lg border border-white/[0.08] bg-[#101010]">
-      <div className="flex flex-col gap-2 border-b border-white/[0.06] p-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="rounded-lg border border-white/[0.075] bg-[#151516]">
+      <div className="flex flex-col gap-2 border-b border-white/[0.055] p-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="text-sm font-medium text-zinc-100">{block.title ?? "Table"}</div>
         <div className="flex items-center gap-2">
           {block.filterable ? (
             <input
-              className="h-8 rounded-md border border-white/[0.08] bg-[#151515] px-2 text-xs text-zinc-200 outline-none"
+              className="h-8 rounded-md border border-white/[0.075] bg-[#111111] px-2 text-xs text-zinc-200 outline-none"
               placeholder="Filter"
               value={filter}
               onChange={(event) => setFilter(event.target.value)}
@@ -225,7 +245,7 @@ function TableBlock({ block }: { block: Extract<RichBlock, { type: "table" }> })
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-full text-left text-sm">
-          <thead className="bg-white/[0.03] text-xs text-zinc-500">
+          <thead className="bg-white/[0.035] text-xs text-zinc-500">
             <tr>
               {block.columns.map((column) => (
                 <th key={column.key} className="whitespace-nowrap px-3 py-2">
@@ -245,7 +265,7 @@ function TableBlock({ block }: { block: Extract<RichBlock, { type: "table" }> })
           </thead>
           <tbody>
             {rows.map((row, index) => (
-              <tr key={index} className="border-t border-white/[0.05] text-zinc-300">
+              <tr key={index} className="border-t border-white/[0.055] text-zinc-300">
                 {block.columns.map((column) => (
                   <td key={column.key} className="whitespace-nowrap px-3 py-2">{String(row[column.key] ?? "")}</td>
                 ))}
@@ -260,15 +280,15 @@ function TableBlock({ block }: { block: Extract<RichBlock, { type: "table" }> })
 
 function ChartBlock({ block }: { block: Extract<RichBlock, { type: "chart" }> }) {
   const suffix = block.series[0]?.valueSuffix ?? "";
-  const tooltip = <Tooltip contentStyle={{ background: "#111113", border: "1px solid rgba(255,255,255,.08)", borderRadius: 8 }} formatter={(value) => `${value}${suffix}`} />;
+  const tooltip = <Tooltip contentStyle={{ background: "#151516", border: "1px solid rgba(255,255,255,.09)", borderRadius: 8, color: "#f4f4f5" }} formatter={(value) => `${value}${suffix}`} />;
   return (
-    <div className="rounded-lg border border-white/[0.08] bg-[#101010] p-3">
+    <div className="rounded-lg border border-white/[0.075] bg-[#151516] p-3">
       {block.title ? <div className="mb-3 text-sm font-medium text-zinc-100">{block.title}</div> : null}
       <div className="h-72">
         <ResponsiveContainer>
           {block.chartType === "line" ? (
             <LineChart data={block.data}>
-              <CartesianGrid stroke="rgba(255,255,255,.08)" strokeDasharray="3 6" vertical={false} />
+              <CartesianGrid stroke="rgba(255,255,255,.075)" strokeDasharray="3 6" vertical={false} />
               <XAxis dataKey={block.xKey} stroke="#71717a" />
               <YAxis stroke="#71717a" />
               {tooltip}
@@ -276,7 +296,7 @@ function ChartBlock({ block }: { block: Extract<RichBlock, { type: "chart" }> })
             </LineChart>
           ) : block.chartType === "bar" ? (
             <BarChart data={block.data}>
-              <CartesianGrid stroke="rgba(255,255,255,.08)" strokeDasharray="3 6" vertical={false} />
+              <CartesianGrid stroke="rgba(255,255,255,.075)" strokeDasharray="3 6" vertical={false} />
               <XAxis dataKey={block.xKey} stroke="#71717a" />
               <YAxis stroke="#71717a" />
               {tooltip}
@@ -284,7 +304,7 @@ function ChartBlock({ block }: { block: Extract<RichBlock, { type: "chart" }> })
             </BarChart>
           ) : block.chartType === "scatter" ? (
             <ScatterChart>
-              <CartesianGrid stroke="rgba(255,255,255,.08)" strokeDasharray="3 6" vertical={false} />
+              <CartesianGrid stroke="rgba(255,255,255,.075)" strokeDasharray="3 6" vertical={false} />
               <XAxis dataKey={block.xKey ?? "x"} stroke="#71717a" />
               <YAxis dataKey={block.series[0]?.dataKey ?? "y"} stroke="#71717a" />
               {tooltip}
@@ -307,16 +327,16 @@ function ChartBlock({ block }: { block: Extract<RichBlock, { type: "chart" }> })
 function FunctionPlotBlock({ block }: { block: Extract<RichBlock, { type: "function_plot" }> }) {
   const data = block.points ?? [];
   return (
-    <div className="rounded-lg border border-white/[0.08] bg-[#101010] p-3">
+    <div className="rounded-lg border border-white/[0.075] bg-[#151516] p-3">
       <div className="mb-3 text-sm font-medium text-zinc-100">{block.title ?? block.expression}</div>
       <div className="h-64">
         <ResponsiveContainer>
           <LineChart data={data}>
-            <CartesianGrid stroke="rgba(255,255,255,.08)" strokeDasharray="3 6" vertical={false} />
+            <CartesianGrid stroke="rgba(255,255,255,.075)" strokeDasharray="3 6" vertical={false} />
             <XAxis dataKey="x" stroke="#71717a" />
             <YAxis stroke="#71717a" />
-            <Tooltip contentStyle={{ background: "#111113", border: "1px solid rgba(255,255,255,.08)", borderRadius: 8 }} />
-            <Line type="monotone" dataKey="y" stroke="#3ddc97" dot={false} strokeWidth={2} />
+            <Tooltip contentStyle={{ background: "#151516", border: "1px solid rgba(255,255,255,.09)", borderRadius: 8, color: "#f4f4f5" }} />
+            <Line type="monotone" dataKey="y" stroke="#4ec85a" dot={false} strokeWidth={2} />
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -324,21 +344,60 @@ function FunctionPlotBlock({ block }: { block: Extract<RichBlock, { type: "funct
   );
 }
 
+function LegacyBlock({ block }: { block: Record<string, unknown> }) {
+  const content = typeof block.content === "string" ? block.content : JSON.stringify(block, null, 2);
+  const type = typeof block.type === "string" ? block.type : "unknown";
+  return (
+    <div className="rounded-lg border border-white/[0.075] bg-[#151516] p-3">
+      <div className="mb-2 text-xs text-zinc-500">{type === "html" ? "Legacy HTML block shown as code" : `Unsupported block: ${type}`}</div>
+      <CodeBlock language={type === "html" ? "html" : "json"} content={content} />
+    </div>
+  );
+}
+
+function ThinkingDisclosure({ content, live = false, placeholder = false }: { content?: string; live?: boolean; placeholder?: boolean }) {
+  const [open, setOpen] = useState(live);
+  const hasContent = Boolean(content?.trim());
+  if (!hasContent && !placeholder) return null;
+  return (
+    <div className={cn("rounded-lg border bg-[#171718]", open ? "border-white/[0.22]" : "border-white/[0.075]")}>
+      <button className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm text-[#8b8d98] transition hover:text-zinc-200" onClick={() => setOpen(!open)}>
+        <span className="inline-flex min-w-0 items-center gap-2">
+          <BrainCircuit className={cn("h-4 w-4", live && "animate-pulse text-zinc-300")} />
+          <span className="font-medium">{live ? "Thought Process..." : "Thought Process"}</span>
+        </span>
+        <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 transition", open && "rotate-180")} />
+      </button>
+      {open && hasContent ? <div className="max-h-72 overflow-y-auto whitespace-pre-wrap border-t border-white/[0.07] px-3 py-2 text-xs leading-5 text-[#8b8d98]">{content}</div> : null}
+    </div>
+  );
+}
+
 function RichBlockView({ block }: { block: RichBlock }) {
-  if (block.type === "markdown") return <MarkdownBlock content={block.content} />;
-  if (block.type === "code") return <CodeBlock language={block.language} filename={block.filename} content={block.content} />;
-  if (block.type === "table") return <TableBlock block={block} />;
-  if (block.type === "chart") return <ChartBlock block={block} />;
-  if (block.type === "function_plot") return <FunctionPlotBlock block={block} />;
-  if (block.type === "math") return <div className="overflow-x-auto rounded-lg border border-white/[0.08] bg-[#101010] p-3"><BlockMath math={block.content} /></div>;
-  if (block.type === "error") {
-    const message = block.message.toLowerCase();
-    if (message.includes("rich content block") || message.includes("rich_blocks")) return null;
-    return <div className="rounded-lg border border-[#ff5c7a]/25 bg-[#ff5c7a]/10 p-3 text-sm text-[#ffb6c4]">{block.message}</div>;
+  if (block.type === "markdown") return <MarkdownBlock content={typeof block.content === "string" ? block.content : ""} />;
+  if (block.type === "code") {
+    return (
+      <CodeBlock
+        language={typeof block.language === "string" ? block.language : undefined}
+        filename={typeof block.filename === "string" ? block.filename : undefined}
+        content={typeof block.content === "string" ? block.content : ""}
+      />
+    );
   }
-  if (block.type === "status") return <div className="rounded-lg border border-white/[0.08] bg-white/[0.03] p-3 text-sm text-zinc-400">{block.content ?? block.status}</div>;
+  if (block.type === "table") return <TableBlock block={block as Extract<RichBlock, { type: "table" }>} />;
+  if (block.type === "chart") return <ChartBlock block={block as Extract<RichBlock, { type: "chart" }>} />;
+  if (block.type === "function_plot") return <FunctionPlotBlock block={block as Extract<RichBlock, { type: "function_plot" }>} />;
+  if (block.type === "math") return <div className="overflow-x-auto rounded-lg border border-white/[0.075] bg-[#151516] p-3"><BlockMath math={String(block.content ?? "")} /></div>;
+  if (block.type === "html") return <LegacyBlock block={block as Record<string, unknown>} />;
+  if (block.type === "error") {
+    const message = typeof block.message === "string" ? block.message : "Unknown rich block error";
+    const normalizedMessage = message.toLowerCase();
+    if (normalizedMessage.includes("rich content block") || normalizedMessage.includes("rich_blocks")) return null;
+    return <div className="rounded-lg border border-[#ff5c7a]/25 bg-[#ff5c7a]/10 p-3 text-sm text-[#ffb6c4]">{message}</div>;
+  }
+  if (block.type === "status") return <div className="rounded-lg border border-white/[0.075] bg-white/[0.025] p-3 text-sm text-zinc-400">{String(block.content ?? block.status)}</div>;
   if (block.type === "tool_call" || block.type === "tool_result") return <CodeBlock language="json" content={JSON.stringify(block, null, 2)} />;
-  return null;
+  return <LegacyBlock block={block as Record<string, unknown>} />;
 }
 
 function isReadyOutput(output: Record<string, unknown> | undefined) {
@@ -348,7 +407,17 @@ function isReadyOutput(output: Record<string, unknown> | undefined) {
 function stepLabel(step: ChatStep) {
   if (step.name === "Thinking/Planning" || step.name === "Finalizing") return "Run initialized";
   if (step.name === "Model response" || step.name === "Provider response") return "Provider call";
-  return step.name;
+  const labels: Record<string, string> = {
+    gateway_model_list: "Read model list",
+    gateway_latency_comparison: "Compare latency",
+    gateway_provider_status: "Check providers",
+    gateway_recent_errors: "Read recent errors",
+    gateway_fallback_routes: "Read fallback routes",
+    gateway_api_key_overview: "Read API key overview",
+    gateway_logs_summary: "Summarize logs",
+    web_search: "Search web"
+  };
+  return labels[step.name] ?? step.name;
 }
 
 function isTrivialStep(step: ChatStep) {
@@ -369,10 +438,6 @@ function activitySummary(run: ChatRun | undefined, steps: ChatStep[]) {
   if (relCount === 1) return `Activity - ${stepLabel(relSteps[0]!)}${duration ? ` - ${duration}` : ""}`;
   if (relCount > 1) return `Activity - ${relCount} steps${duration ? ` - ${duration}` : ""}`;
   return `Activity${duration ? ` - ${duration}` : ""}`;
-  const stepCount = steps.length;
-  const stepLatency = steps.reduce((total, step) => total + (step.latencyMs ?? 0), 0);
-  const latency = run?.latencyMs ?? (stepLatency || null);
-  return `Activity · ${stepCount} ${stepCount === 1 ? "step" : "steps"}${latency ? ` · ${latency} ms` : ""}`;
 }
 
 function ActivityDisclosure({ run, steps }: { run?: ChatRun; steps: ChatStep[] }) {
@@ -382,12 +447,12 @@ function ActivityDisclosure({ run, steps }: { run?: ChatRun; steps: ChatStep[] }
 
   return (
     <div className="pt-1">
-      <button className="inline-flex items-center gap-1.5 rounded-md py-1 text-xs text-zinc-500 transition hover:text-zinc-300" onClick={() => setOpen(!open)}>
+      <button className="inline-flex items-center gap-1.5 rounded-md py-1 text-xs text-[#8b8d98] transition hover:text-zinc-300" onClick={() => setOpen(!open)}>
         <span>{activitySummary(run, relevantSteps)}</span>
         <ChevronDown className={cn("h-3.5 w-3.5 transition", open && "rotate-180")} />
       </button>
       {open ? (
-        <div className="mt-2 space-y-2 rounded-lg border border-white/[0.06] bg-[#101010] p-2">
+        <div className="mt-2 space-y-2 rounded-lg border border-white/[0.07] bg-[#151516] p-2">
           {run ? (
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[11px] text-zinc-500">
               <span>{run.status}</span>
@@ -403,7 +468,7 @@ function ActivityDisclosure({ run, steps }: { run?: ChatRun; steps: ChatStep[] }
             const output = step.output ?? {};
             const sources = Array.isArray((output as any).sources) ? (output as any).sources as Array<{ title: string; url: string }> : [];
             return (
-              <details key={step.id} className="rounded-md border border-white/[0.05] bg-white/[0.02]">
+              <details key={step.id} className="rounded-md border border-white/[0.055] bg-white/[0.018]">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-left">
                   <span className="flex min-w-0 items-center gap-2 text-xs">
                     <span className={cn("h-1.5 w-1.5 rounded-full", step.status === "completed" ? "bg-[#3ddc97]" : step.status === "failed" ? "bg-[#ff5c7a]" : "bg-[#f4c84a]")} />
@@ -441,14 +506,16 @@ function ActivityDisclosure({ run, steps }: { run?: ChatRun; steps: ChatStep[] }
 function MessageView({ message, run, steps, onRegenerate }: { message: ChatMessage; run?: ChatRun; steps: ChatStep[]; onRegenerate: () => void }) {
   const blocks = message.contentBlocks?.blocks?.length ? message.contentBlocks.blocks : [{ type: "markdown", content: message.contentText } as RichBlock];
   const metadata = message.metadata ?? {};
+  const reasoningText = typeof metadata.reasoningText === "string" ? metadata.reasoningText : "";
   return (
-    <div className={cn("flex border-b border-white/[0.035] py-5 last:border-b-0", message.role === "user" ? "justify-end" : "justify-start")}>
+    <div className={cn("flex py-7", message.role === "user" ? "justify-end" : "justify-start")}>
       {message.role === "assistant" ? (
-        <div className="w-full max-w-[820px] space-y-3">
+        <div className="w-full max-w-[850px] space-y-3">
+          <ThinkingDisclosure content={reasoningText} />
           <div className="space-y-4 text-[15px] leading-7 text-zinc-100">
             {blocks.map((block, index) => <RichBlockView key={index} block={block} />)}
           </div>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#8b8d98]">
             <CopyButton value={message.contentText} />
             <button className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-zinc-500 transition hover:bg-white/[0.04] hover:text-zinc-200" onClick={onRegenerate}>
               <RotateCcw className="h-3.5 w-3.5" /> Regenerate
@@ -461,7 +528,7 @@ function MessageView({ message, run, steps, onRegenerate }: { message: ChatMessa
           <ActivityDisclosure run={run} steps={steps} />
         </div>
       ) : (
-        <div className="max-w-[min(720px,85%)] rounded-2xl bg-[#2a2a2e] px-4 py-2.5 text-sm leading-6 text-zinc-100 shadow-sm">
+        <div className="max-w-[min(760px,86%)] rounded-xl bg-[#2a2a2e] px-4 py-2.5 text-sm leading-6 text-zinc-100">
           <div className="whitespace-pre-wrap">{message.contentText}</div>
         </div>
       )}
@@ -470,7 +537,8 @@ function MessageView({ message, run, steps, onRegenerate }: { message: ChatMessa
 }
 
 function defaultModel(models: ChatModel[]) {
-  return models.find((model) => model.status !== "failed")?.alias ?? models[0]?.alias ?? "";
+  const available = models.filter((model) => model.status !== "failed");
+  return available.find((model) => model.alias === "glm5.1")?.alias ?? available[0]?.alias ?? models[0]?.alias ?? "";
 }
 
 function ModelPicker({ models, value, onChange }: { models: ChatModel[]; value: string; onChange: (value: string) => void }) {
@@ -563,6 +631,7 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
   const [modelAlias, setModelAlias] = useState(defaultModel(initialModels));
   const [content, setContent] = useState("");
   const [streamingText, setStreamingText] = useState("");
+  const [streamingReasoning, setStreamingReasoning] = useState("");
   const [isRunning, setIsRunning] = useState(false);
   const [runningThreadId, setRunningThreadId] = useState<string | null>(null);
   const [webSearch, setWebSearch] = useState(false);
@@ -575,7 +644,7 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
   const [error, setError] = useState("");
   const abortRef = useRef<AbortController | null>(null);
   const activeThreadIdRef = useRef<string | null>(null);
-  const scrollRef = useAutoScroll([messages, streamingText, steps]);
+  const scrollRef = useAutoScroll([messages, streamingText, streamingReasoning, steps]);
 
   const webSearchAvailable = tools.some((tool) => tool.name === "web_search" && tool.enabled);
 
@@ -663,6 +732,7 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
     setRuns(result.data.runs);
     setSteps(result.data.steps);
     setStreamingText("");
+    setStreamingReasoning("");
     setError("");
     setMobileHistoryOpen(false);
   }
@@ -674,6 +744,7 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
     setRuns([]);
     setSteps([]);
     setStreamingText("");
+    setStreamingReasoning("");
     setContent("");
     setError("");
     setOpenThreadMenu(null);
@@ -744,6 +815,7 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
     setIsRunning(true);
     setRunningThreadId(requestThreadId);
     setStreamingText("");
+    setStreamingReasoning("");
     const optimisticId = `optimistic-${Date.now()}`;
     const optimisticMessage: ChatMessage = {
       id: optimisticId,
@@ -766,7 +838,7 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ threadId: requestThreadId ?? undefined, content: text, modelAlias }),
+        body: JSON.stringify({ threadId: requestThreadId ?? undefined, content: text, modelAlias, webSearch }),
         signal: controller.signal
       });
       if (!response.ok || !response.body) {
@@ -818,12 +890,17 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
             if (!belongsToVisibleThread(streamThreadId)) continue;
             setStreamingText((current) => current + payload.content);
           }
+          if (payload.type === "reasoning_delta") {
+            if (!belongsToVisibleThread(streamThreadId)) continue;
+            setStreamingReasoning((current) => current + payload.content);
+          }
           if (payload.type === "done") {
             const payloadThreadId = typeof payload.message?.threadId === "string" ? payload.message.threadId : streamThreadId;
             if (!belongsToVisibleThread(payloadThreadId)) continue;
             setMessages((current) => [...current.filter((message) => message.id !== payload.message.id), payload.message]);
             setRuns((current) => [...current.filter((run) => run.id !== payload.run.id), payload.run]);
             setStreamingText("");
+            setStreamingReasoning("");
           }
           if (payload.type === "error" && belongsToVisibleThread(streamThreadId)) setError(payload.error);
         }
@@ -854,20 +931,14 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
   const showRunning = isRunning && activeThreadId === runningThreadId;
   const activeRun = runs.at(-1);
   const visibleRunningSteps = activeRun ? steps.filter((step) => step.runId === activeRun.id) : [];
-  const suggestions = [
-    "Explain recent API errors",
-    "Compare model latency",
-    "Create a fallback route",
-    "Debug a provider response"
-  ];
 
   return (
-    <PageShell>
-      <div className="flex h-[calc(100vh-6.5rem)] overflow-hidden bg-[#111111]">
+    <PageShell flush>
+      <div className="flex h-[calc(100vh-4rem)] overflow-hidden bg-[#111111]">
         {mobileHistoryOpen ? <button className="fixed inset-0 z-30 bg-black/50 md:hidden" aria-label="Close chats" onClick={() => setMobileHistoryOpen(false)} /> : null}
         <aside
           className={cn(
-            "shrink-0 overflow-hidden border-r border-white/[0.05] bg-[#0f0f10] transition-[width,transform] duration-300 ease-out md:relative md:z-auto md:block md:translate-x-0",
+            "shrink-0 overflow-hidden border-r border-white/[0.045] bg-[#0f0f10] transition-[width,transform] duration-300 ease-out md:relative md:z-auto md:block md:translate-x-0",
             sessionOpen ? "md:w-72" : "md:w-14",
             mobileHistoryOpen ? "fixed inset-y-0 left-0 z-40 w-80 max-w-[86vw] translate-x-0" : "fixed inset-y-0 left-0 z-40 w-80 max-w-[86vw] -translate-x-full md:static"
           )}
@@ -891,12 +962,13 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
             {sessionOpen || mobileHistoryOpen ? (
               <>
                 <div className="px-3 pb-2">
-                  <div className="flex h-9 items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 text-zinc-500">
+                  <div className="flex h-9 items-center gap-2 rounded-lg border border-white/[0.06] bg-[#151516] px-3 text-zinc-500">
                     <Search className="h-4 w-4 shrink-0" />
                     <input
                       className="min-w-0 flex-1 bg-transparent text-sm text-zinc-200 outline-none placeholder:text-zinc-600"
                       placeholder="Search chats"
                       value={historyFilter}
+                      suppressHydrationWarning
                       onChange={(event) => setHistoryFilter(event.target.value)}
                     />
                   </div>
@@ -916,6 +988,7 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
                             className="h-8 w-full rounded-md border border-white/[0.08] bg-[#151515] px-2 text-sm text-zinc-100 outline-none"
                             value={renameTitle}
                             autoFocus
+                            suppressHydrationWarning
                             onChange={(event) => setRenameTitle(event.target.value)}
                             onKeyDown={(event) => {
                               if (event.key === "Escape") {
@@ -995,7 +1068,7 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
         </aside>
 
         <main className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-10 flex min-h-14 items-center justify-between gap-3 border-b border-white/[0.04] bg-[#111111]/95 px-3 backdrop-blur">
+          <header className="sticky top-0 z-10 flex min-h-14 items-center justify-between gap-3 border-b border-white/[0.04] bg-[#111111]/96 px-6">
             <div className="flex min-w-0 items-center gap-2">
               <Button variant="ghost" className="h-8 w-8 rounded-lg px-0 md:hidden" onClick={() => setMobileHistoryOpen(true)}><Menu className="h-4 w-4" /></Button>
               <Button
@@ -1007,7 +1080,7 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
                 {sessionOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
               </Button>
               <div className="min-w-0">
-                <div className="truncate text-sm font-medium text-zinc-100">{activeThread?.title ?? "New chat"}</div>
+                <div className="truncate text-sm font-semibold text-zinc-100">{activeThread?.title ?? "GLM-5.1"}</div>
                 <div className="truncate text-xs text-zinc-500">{activeModel ? `${activeModel.provider} / ${activeModel.realModel}` : "Choose a model"}</div>
               </div>
             </div>
@@ -1024,25 +1097,14 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
             </div>
           </header>
 
-          <div ref={scrollRef} className="flex-1 overflow-y-auto px-4">
-            <div className="mx-auto flex min-h-full max-w-4xl flex-col">
+          <div ref={scrollRef} className="flex-1 overflow-y-auto px-6">
+            <div className="mx-auto flex min-h-full max-w-[1050px] flex-col">
               {error ? <div className="mt-4 rounded-lg border border-[#ff5c7a]/25 bg-[#ff5c7a]/10 p-3 text-sm text-[#ffb6c4]">{error}</div> : null}
               {!messages.length && !showRunning ? (
-                <div className="flex flex-1 flex-col items-center justify-center py-10 text-center">
-                  <div className="text-2xl font-semibold text-zinc-100">How can I help with your gateway?</div>
-                  <div className="mt-5 grid w-full max-w-2xl gap-2 sm:grid-cols-2">
-                    {suggestions.map((suggestion) => (
-                      <button
-                        key={suggestion}
-                        className="rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-3 text-left text-sm text-zinc-300 transition hover:bg-white/[0.06] hover:text-zinc-100"
-                        onClick={() => {
-                          setContent(suggestion);
-                          sendMessage(false, suggestion).catch((err: Error) => setError(err.message));
-                        }}
-                      >
-                        {suggestion}
-                      </button>
-                    ))}
+                <div className="flex flex-1 flex-col pt-8">
+                  <div className="text-lg font-semibold text-zinc-100">GLM-5.1</div>
+                  <div className="mt-8 max-w-[850px]">
+                    <ThinkingDisclosure placeholder />
                   </div>
                 </div>
               ) : null}
@@ -1060,9 +1122,10 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
                 );
               })}
               {showRunning ? (
-                <div className="flex border-b border-white/[0.035] py-5">
-                  <div className="w-full max-w-[820px] space-y-3">
+                <div className="flex py-7">
+                  <div className="w-full max-w-[850px] space-y-3">
                     <div className="flex items-center gap-2 text-sm text-zinc-500"><Clock3 className="h-4 w-4 animate-pulse" /> Generating...</div>
+                    <ThinkingDisclosure content={streamingReasoning} live />
                     {streamingText ? <MarkdownBlock content={streamingText} /> : null}
                     <ActivityDisclosure run={activeRun} steps={visibleRunningSteps} />
                   </div>
@@ -1071,12 +1134,13 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
             </div>
           </div>
 
-          <div className="sticky bottom-0 bg-[#111111] px-4 pb-3 pt-2">
-            <div className="mx-auto max-w-4xl rounded-2xl border border-white/[0.08] bg-[#18181b] px-3 py-2 shadow-2xl shadow-black/20">
+          <div className="sticky bottom-0 bg-[#111111] px-6 pb-5 pt-2">
+            <div className="mx-auto max-w-[1050px] rounded-xl border border-white/[0.085] bg-[#18181b] px-3 py-2">
               <textarea
-                className="max-h-40 min-h-12 w-full resize-none bg-transparent px-1 py-1.5 text-sm leading-6 text-zinc-100 outline-none placeholder:text-zinc-600"
-                placeholder="Ask about models, logs, providers, or API behavior..."
+                className="max-h-44 min-h-20 w-full resize-none bg-transparent px-1 py-2 text-sm leading-6 text-zinc-100 outline-none placeholder:text-zinc-500"
+                placeholder="Send a Message"
                 value={content}
+                suppressHydrationWarning
                 onChange={(event) => setContent(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" && !event.shiftKey) {
@@ -1085,11 +1149,11 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
                   }
                 }}
               />
-              <div className="flex min-h-9 items-center justify-between gap-3">
+              <div className="flex min-h-10 items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   {webSearchAvailable ? (
                     <button
-                      className={cn("inline-flex h-8 items-center gap-2 rounded-lg px-2 text-xs transition", webSearch ? "bg-[#3ddc97]/10 text-[#82efbf]" : "text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300")}
+                      className={cn("inline-flex h-8 items-center gap-2 rounded-lg border border-white/[0.07] px-2 text-xs transition", webSearch ? "bg-[#3ddc97]/10 text-[#82efbf]" : "text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-100")}
                       onClick={() => setWebSearch(!webSearch)}
                     >
                       <Search className="h-3.5 w-3.5" /> Search

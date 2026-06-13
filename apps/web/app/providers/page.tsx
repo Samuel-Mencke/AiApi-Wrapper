@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Plus } from "lucide-react";
 import { PageShell } from "@/components/page-shell";
 import { ProviderStatusCard, type ProviderRow } from "@/components/provider-status-card";
 import { Button } from "@/components/ui/button";
@@ -49,7 +50,14 @@ function providerQuota(provider: ProviderRow, settings: QuotaSetting[]): Provide
 export default function ProvidersPage() {
   const [providers, setProviders] = useState<ProviderRow[]>([]);
   const [quotaSettings, setQuotaSettings] = useState<QuotaSetting[]>([]);
+  const [query, setQuery] = useState("");
   const [error, setError] = useState("");
+  const [newProvider, setNewProvider] = useState({
+    name: "",
+    type: "custom",
+    baseUrl: "",
+    enabled: true
+  });
 
   function load() {
     Promise.all([
@@ -70,6 +78,11 @@ export default function ProvidersPage() {
     [providers, quotaSettings]
   );
 
+  const visibleProviders = providers.filter((provider) => {
+    const text = `${provider.name} ${provider.type} ${provider.baseUrl ?? ""}`.toLowerCase();
+    return text.includes(query.toLowerCase());
+  });
+
   async function patchProviderQuota(provider: string, body: Partial<Pick<QuotaSetting, "enabled" | "windowHours" | "requestLimit" | "tokenLimit">>) {
     const result = await apiFetch<ApiEnvelope<QuotaSetting[]>>("/admin/quota-settings", {
       method: "PATCH",
@@ -83,6 +96,25 @@ export default function ProvidersPage() {
     return input?.value ? Number(input.value) : null;
   }
 
+  async function createProvider() {
+    setError("");
+    try {
+      await apiFetch("/admin/providers", {
+        method: "POST",
+        body: JSON.stringify({
+          name: newProvider.name.trim(),
+          type: newProvider.type,
+          baseUrl: newProvider.baseUrl.trim() || null,
+          enabled: newProvider.enabled
+        })
+      });
+      setNewProvider({ name: "", type: "custom", baseUrl: "", enabled: true });
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Create failed");
+    }
+  }
+
   return (
     <PageShell>
       <div className="space-y-6">
@@ -91,8 +123,54 @@ export default function ProvidersPage() {
           <p className="mt-1 text-sm text-zinc-500">Configured provider endpoints and reachability checks.</p>
         </div>
         {error ? <div className="text-sm text-[#ff9aad]">{error}</div> : null}
+
+        <Card>
+          <CardHeader><CardTitle>Add provider</CardTitle></CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1fr_150px_2fr_auto]">
+              <Input
+                placeholder="Provider name"
+                value={newProvider.name}
+                onChange={(event) => setNewProvider((value) => ({ ...value, name: event.target.value }))}
+              />
+              <select
+                className="h-9 rounded-lg border border-white/[0.07] bg-[#101010] px-3 text-sm text-zinc-100 outline-none transition focus:border-white/[0.18]"
+                value={newProvider.type}
+                onChange={(event) => setNewProvider((value) => ({ ...value, type: event.target.value }))}
+              >
+                <option value="custom">custom</option>
+                <option value="openai">openai</option>
+                <option value="openrouter">openrouter</option>
+                <option value="gemini">gemini</option>
+                <option value="anthropic">anthropic</option>
+              </select>
+              <Input
+                placeholder="Base URL"
+                value={newProvider.baseUrl}
+                onChange={(event) => setNewProvider((value) => ({ ...value, baseUrl: event.target.value }))}
+              />
+              <Button onClick={createProvider} disabled={!newProvider.name.trim() || (newProvider.type === "custom" && !newProvider.baseUrl.trim())}>
+                <Plus className="h-4 w-4" />
+                Add
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle>Manage providers</CardTitle>
+            <Input
+              className="sm:w-80"
+              placeholder="Search providers"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </CardHeader>
+        </Card>
+
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-          {providers.map((provider) => (
+          {visibleProviders.map((provider) => (
             <ProviderStatusCard
               key={provider.id}
               provider={provider}
@@ -103,8 +181,14 @@ export default function ProvidersPage() {
               onQuotaToggle={async (enabled) => {
                 await patchProviderQuota(provider.name, { enabled });
               }}
+              onDeleted={load}
             />
           ))}
+          {!visibleProviders.length ? (
+            <div className="rounded-lg border border-dashed border-white/[0.08] p-8 text-center text-sm text-zinc-500 xl:col-span-3">
+              No providers found.
+            </div>
+          ) : null}
         </div>
 
         <Card>

@@ -3,7 +3,7 @@ import type { FastifyInstance } from "fastify";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { db } from "../db/client.js";
-import { apiKeys, modelRoutes, providers, quotaSettings, requests } from "../db/schema.js";
+import { apiKeys, modelRoutes, providers, quotaSettings, requests, storedResponses } from "../db/schema.js";
 import { env } from "../env.js";
 import { requireAdminAuth } from "../middleware/auth.js";
 import { CHAT_API_KEY_ID, CHAT_API_KEY_NAME, ensureInternalChatApiKey } from "../chat/internal-api-key.js";
@@ -125,7 +125,7 @@ function ensureQuotaSettings(): void {
         id: nanoid(),
         provider: route.provider,
         modelAlias: route.alias,
-        enabled: route.provider === "z-ai" && route.alias === "z-ai-coding",
+        enabled: route.provider === "z-ai" && route.alias === "glm-4.5",
         windowHours: 5,
         requestLimit: null,
         tokenLimit: null,
@@ -166,11 +166,13 @@ export async function adminStatsRoutes(app: FastifyInstance): Promise<void> {
     ensureQuotaSettings();
     ensureInternalChatApiKey();
     const allRequests: RequestRow[] = db.select().from(requests).all();
+    const allResponses = db.select().from(storedResponses).all();
     const activeProviders = db.select().from(providers).all().filter((provider) => provider.enabled).length;
     const keyNames = apiKeyNameMap();
     const today = startOfToday();
     const fiveHoursAgo = new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString();
     const requestsToday = allRequests.filter((request) => request.createdAt >= today).length;
+    const responsesToday = allResponses.filter((response) => response.createdAt >= today && !response.deletedAt).length;
     const requestsLast5h = allRequests.filter((request) => request.createdAt >= fiveHoursAgo).length;
     const errors = allRequests.filter((request) => request.status === "error").length;
     const averageLatencyMs = allRequests.length
@@ -326,8 +328,14 @@ export async function adminStatsRoutes(app: FastifyInstance): Promise<void> {
 
     return {
       requestsToday,
+      responsesToday,
       requestsLast5h,
       totalRequests: allRequests.length,
+      totalResponses: allResponses.filter((response) => !response.deletedAt).length,
+      responsesByStatus: Object.fromEntries(
+        [...new Set(allResponses.filter((response) => !response.deletedAt).map((response) => response.status))]
+          .map((status) => [status, allResponses.filter((response) => !response.deletedAt && response.status === status).length])
+      ),
       totalTokens,
       averageLatencyMs,
       errorRate: allRequests.length ? errors / allRequests.length : 0,

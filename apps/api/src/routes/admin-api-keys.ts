@@ -2,6 +2,7 @@ import { eq, ne } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { nanoid } from "nanoid";
 import { z } from "zod";
+import { GatewayError } from "@ai-gateway/core/errors";
 import { db } from "../db/client.js";
 import { apiKeys } from "../db/schema.js";
 import { hashApiKey, requireAdminAuth } from "../middleware/auth.js";
@@ -54,8 +55,38 @@ export async function adminApiKeyRoutes(app: FastifyInstance): Promise<void> {
 
   app.patch("/admin/api-keys/:id", { preHandler: requireAdminAuth }, async (request) => {
     const params = z.object({ id: z.string() }).parse(request.params);
-    const body = z.object({ enabled: z.boolean() }).parse(request.body);
-    db.update(apiKeys).set({ enabled: body.enabled }).where(eq(apiKeys.id, params.id)).run();
+    if (params.id === "system") {
+      throw new GatewayError("Cannot edit internal system key", {
+        code: "invalid_request",
+        statusCode: 400,
+        param: "id"
+      });
+    }
+
+    const body = z.object({
+      name: z.string().min(1).optional(),
+      enabled: z.boolean().optional(),
+      monthlyLimit: z.number().int().positive().nullable().optional()
+    }).parse(request.body);
+
+    const existing = db.select().from(apiKeys).where(eq(apiKeys.id, params.id)).get();
+    if (!existing) {
+      throw new GatewayError("API key not found", {
+        code: "api_key_not_found",
+        statusCode: 404,
+        param: "id"
+      });
+    }
+
+    db.update(apiKeys)
+      .set({
+        name: body.name,
+        enabled: body.enabled,
+        monthlyLimit: body.monthlyLimit
+      })
+      .where(eq(apiKeys.id, params.id))
+      .run();
+
     return db.select({
       id: apiKeys.id,
       name: apiKeys.name,

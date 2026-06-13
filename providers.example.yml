@@ -21,7 +21,7 @@ providers:
     enabled: true
 
 models:
-  z-ai-coding:
+  glm-4.5:
     provider: z-ai
     model: glm-4.5
   glm5.1:

@@ -6,17 +6,31 @@ export interface InternalMessage {
   name?: string;
   toolCallId?: string;
   toolCalls?: unknown[];
+  reasoningContent?: string;
+  thinkingContent?: string;
 }
 
 export interface InternalChatRequest {
   modelAlias: string;
   messages: InternalMessage[];
+  requestId?: string;
   temperature?: number;
+  topP?: number;
   maxTokens?: number;
+  maxCompletionTokens?: number;
   stream?: boolean;
   streamOptions?: Record<string, unknown>;
+  stop?: string | string[];
+  n?: number;
+  seed?: number;
   tools?: unknown[];
+  toolChoice?: unknown;
+  parallelToolCalls?: boolean;
+  responseFormat?: unknown;
   extraBody?: Record<string, unknown>;
+  gateway?: {
+    includeReasoning?: boolean;
+  };
 }
 
 export interface ModelRouteTarget {
@@ -29,6 +43,7 @@ export interface ModelRouteConfig extends ModelRouteTarget {
   alias: string;
   enabled: boolean;
   fallback: ModelRouteTarget[];
+  createdAt?: string;
 }
 
 export interface ProviderConfig {
@@ -49,6 +64,10 @@ export interface ProviderResponse {
   provider: string;
   model: string;
   content: unknown;
+  reasoningText?: string;
+  thinkingText?: string;
+  toolCalls?: unknown[];
+  finishReason?: string | null;
   usage?: ProviderUsage;
   raw: unknown;
 }

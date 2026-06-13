@@ -14,6 +14,13 @@ sqlite.pragma("foreign_keys = ON");
 
 export const db = drizzle(sqlite, { schema });
 
+function ensureColumn(table: string, column: string, definition: string): void {
+  const columns = sqlite.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  if (!columns.some((item) => item.name === column)) {
+    sqlite.exec(`ALTER TABLE ${table} ADD COLUMN ${definition}`);
+  }
+}
+
 export function migrate(): void {
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS api_keys (
@@ -44,6 +51,7 @@ export function migrate(): void {
     );
     CREATE TABLE IF NOT EXISTS requests (
       id TEXT PRIMARY KEY,
+      request_id TEXT,
       api_key_id TEXT,
       model_alias TEXT NOT NULL,
       provider TEXT NOT NULL,
@@ -120,8 +128,35 @@ export function migrate(): void {
       latency_ms INTEGER,
       status TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS responses (
+      id TEXT PRIMARY KEY,
+      api_key_id TEXT,
+      model_alias TEXT NOT NULL,
+      provider TEXT,
+      real_model TEXT,
+      status TEXT NOT NULL,
+      request_json TEXT NOT NULL,
+      response_json TEXT NOT NULL,
+      input_tokens INTEGER,
+      output_tokens INTEGER,
+      total_tokens INTEGER,
+      created_at TEXT NOT NULL,
+      completed_at TEXT,
+      deleted_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS response_input_items (
+      id TEXT PRIMARY KEY,
+      response_id TEXT NOT NULL,
+      item_index INTEGER NOT NULL,
+      item_json TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
     CREATE INDEX IF NOT EXISTS idx_chat_messages_thread_created ON chat_messages(thread_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_chat_runs_thread_started ON chat_runs(thread_id, started_at);
     CREATE INDEX IF NOT EXISTS idx_chat_steps_run_started ON chat_steps(run_id, started_at);
+    CREATE INDEX IF NOT EXISTS idx_responses_api_key_created ON responses(api_key_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_response_input_items_response ON response_input_items(response_id, item_index);
   `);
+  ensureColumn("requests", "request_id", "request_id TEXT");
+  sqlite.exec("CREATE INDEX IF NOT EXISTS idx_requests_request_id ON requests(request_id)");
 }

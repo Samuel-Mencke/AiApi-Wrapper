@@ -3,6 +3,7 @@ import { db } from "../db/client.js";
 import { requests } from "../db/schema.js";
 
 export interface RequestLogInput {
+  requestId?: string;
   apiKeyId: string | null;
   modelAlias: string;
   provider: string;
@@ -19,6 +20,7 @@ export interface RequestLogInput {
 export function logRequest(input: RequestLogInput): void {
   db.insert(requests).values({
     id: nanoid(),
+    requestId: input.requestId,
     apiKeyId: input.apiKeyId,
     modelAlias: input.modelAlias,
     provider: input.provider,

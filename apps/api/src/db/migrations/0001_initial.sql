@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS model_routes (
 
 CREATE TABLE IF NOT EXISTS requests (
   id TEXT PRIMARY KEY,
+  request_id TEXT,
   api_key_id TEXT,
   model_alias TEXT NOT NULL,
   provider TEXT NOT NULL,
@@ -55,4 +56,29 @@ CREATE TABLE IF NOT EXISTS quota_settings (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   UNIQUE(provider, model_alias)
+);
+
+CREATE TABLE IF NOT EXISTS responses (
+  id TEXT PRIMARY KEY,
+  api_key_id TEXT,
+  model_alias TEXT NOT NULL,
+  provider TEXT,
+  real_model TEXT,
+  status TEXT NOT NULL,
+  request_json TEXT NOT NULL,
+  response_json TEXT NOT NULL,
+  input_tokens INTEGER,
+  output_tokens INTEGER,
+  total_tokens INTEGER,
+  created_at TEXT NOT NULL,
+  completed_at TEXT,
+  deleted_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS response_input_items (
+  id TEXT PRIMARY KEY,
+  response_id TEXT NOT NULL,
+  item_index INTEGER NOT NULL,
+  item_json TEXT NOT NULL,
+  created_at TEXT NOT NULL
 );

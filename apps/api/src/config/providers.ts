@@ -12,6 +12,10 @@ interface ProvidersFile {
   models?: Record<string, ModelRouteTarget & { fallback?: ModelRouteTarget[]; enabled?: boolean }>;
 }
 
+const legacyModelAliases: Record<string, string> = {
+  "glm-4.5": "z-ai-coding"
+};
+
 export function readProvidersFile(): ProvidersFile {
   if (!fs.existsSync(env.configPath)) {
     return {};
@@ -60,6 +64,21 @@ export function syncConfigToDatabase(): void {
 
   for (const route of getConfiguredModels()) {
     const existing = db.select().from(modelRoutes).where(eq(modelRoutes.alias, route.alias)).get();
+    const legacyAlias = legacyModelAliases[route.alias];
+    const legacy = !existing && legacyAlias ? db.select().from(modelRoutes).where(eq(modelRoutes.alias, legacyAlias)).get() : undefined;
+    if (legacy && legacy.provider === route.provider && legacy.realModel === route.model) {
+      db.update(modelRoutes)
+        .set({
+          alias: route.alias,
+          provider: route.provider,
+          realModel: route.model,
+          fallbackJson: JSON.stringify(route.fallback),
+          enabled: route.enabled
+        })
+        .where(eq(modelRoutes.id, legacy.id))
+        .run();
+      continue;
+    }
     if (!existing) {
       db.insert(modelRoutes).values({
         id: nanoid(),
@@ -75,12 +94,27 @@ export function syncConfigToDatabase(): void {
 
   for (const route of getConfiguredModels()) {
     const existing = db.select().from(quotaSettings).where(eq(quotaSettings.modelAlias, route.alias)).get();
+    const legacyAlias = legacyModelAliases[route.alias];
+    const legacy = !existing && legacyAlias ? db.select().from(quotaSettings).where(eq(quotaSettings.modelAlias, legacyAlias)).get() : undefined;
+    if (legacy && legacy.provider === route.provider) {
+      db.update(quotaSettings)
+        .set({
+          modelAlias: route.alias,
+          provider: route.provider,
+          enabled: route.provider === "z-ai" && route.alias === "glm-4.5",
+          concurrencyLimit: zAiConcurrencyLimit(route.model),
+          updatedAt: now
+        })
+        .where(eq(quotaSettings.id, legacy.id))
+        .run();
+      continue;
+    }
     if (!existing) {
       db.insert(quotaSettings).values({
         id: nanoid(),
         provider: route.provider,
         modelAlias: route.alias,
-        enabled: route.provider === "z-ai" && route.alias === "z-ai-coding",
+        enabled: route.provider === "z-ai" && route.alias === "glm-4.5",
         windowHours: 5,
         requestLimit: null,
         tokenLimit: null,

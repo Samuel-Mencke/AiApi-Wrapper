@@ -47,6 +47,7 @@ export function listModelAliases(): ModelRouteConfig[] {
     provider: route.provider,
     model: route.realModel,
     enabled: route.enabled,
+    createdAt: route.createdAt,
     fallback: JSON.parse(route.fallbackJson || "[]") as ModelRouteTarget[]
   }));
 }

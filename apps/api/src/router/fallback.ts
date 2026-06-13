@@ -8,6 +8,7 @@ import { openAiAdapter } from "../providers/openai.js";
 import { openRouterAdapter } from "../providers/openrouter.js";
 import type { ProviderAdapter } from "../providers/types.js";
 import { logRequest } from "../middleware/request-logger.js";
+import { enforceRouteQuota } from "./quota.js";
 import { getProviderConfig, resolveModel } from "./resolve-model.js";
 
 const adapters: Record<string, ProviderAdapter> = {
@@ -45,6 +46,7 @@ export async function executeWithFallback(
 
     const started = Date.now();
     try {
+      enforceRouteQuota(request.modelAlias, target);
       if (request.stream) {
         throw new GatewayError("Use executeStreamWithFallback for streaming requests", {
           code: "internal_stream_routing_error",
@@ -54,6 +56,7 @@ export async function executeWithFallback(
       const response = await adapter.complete(request, target, providerConfig);
       const latencyMs = Date.now() - started;
       logRequest({
+        requestId: request.requestId,
         apiKeyId,
         modelAlias: request.modelAlias,
         provider: target.provider,
@@ -69,6 +72,7 @@ export async function executeWithFallback(
       const gatewayError = toGatewayError(error);
       lastError = gatewayError;
       logRequest({
+        requestId: request.requestId,
         apiKeyId,
         modelAlias: request.modelAlias,
         provider: target.provider,
@@ -101,6 +105,7 @@ export async function executeStreamWithFallback(
     const started = Date.now();
 
     try {
+      enforceRouteQuota(request.modelAlias, target);
       if (!adapter?.supportsStreaming || !adapter.stream) {
         throw new GatewayError(`Provider '${target.provider}' does not support streaming yet`, {
           code: "streaming_not_supported",
@@ -111,6 +116,7 @@ export async function executeStreamWithFallback(
 
       const stream = await adapter.stream(request, target, providerConfig);
       logRequest({
+        requestId: request.requestId,
         apiKeyId,
         modelAlias: request.modelAlias,
         provider: target.provider,
@@ -123,6 +129,7 @@ export async function executeStreamWithFallback(
       const gatewayError = toGatewayError(error);
       lastError = gatewayError;
       logRequest({
+        requestId: request.requestId,
         apiKeyId,
         modelAlias: request.modelAlias,
         provider: target.provider,

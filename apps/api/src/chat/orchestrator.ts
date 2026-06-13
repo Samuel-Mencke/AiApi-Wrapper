@@ -2,40 +2,36 @@ import { estimateCostUsd } from "@ai-gateway/core/pricing";
 import type { InternalMessage } from "@ai-gateway/core";
 import { nanoid } from "nanoid";
 import { eq } from "drizzle-orm";
-import { z } from "zod";
 import { db } from "../db/client.js";
-import { apiKeys, chatMessages, chatRuns, chatSteps, chatThreads, modelRoutes, providers, requests } from "../db/schema.js";
+import { chatMessages, chatRuns, chatSteps, chatThreads } from "../db/schema.js";
 import { env } from "../env.js";
-import { executeWithFallback } from "../router/fallback.js";
+import { executeStreamWithFallback } from "../router/fallback.js";
 import { resolveModel } from "../router/resolve-model.js";
 import { executeChatTool, openAiToolDefinitions } from "./tools.js";
 import { generateFunctionPlotPoints } from "./function-plot.js";
-import { markdownOnly, parseRichBlocksFromText, richBlocksSchema, type RichBlocks } from "./rich-blocks.js";
+import { parseRichBlocksFromText, richBlocksSchema, type RichBlocks } from "./rich-blocks.js";
 import { CHAT_API_KEY_ID, ensureInternalChatApiKey } from "./internal-api-key.js";
 
 export type ChatRunEvent =
   | { type: "run"; run: unknown }
   | { type: "message"; message: unknown }
   | { type: "step"; step: unknown }
+  | { type: "reasoning_delta"; content: string }
   | { type: "delta"; content: string }
+  | { type: "tool_call"; toolCall: unknown }
+  | { type: "tool_result"; toolCallId?: string; toolName: string; result: unknown }
+  | { type: "rich_block"; block: unknown }
   | { type: "done"; message: unknown; run: unknown }
   | { type: "error"; error: string };
 
 const assistantSystemPrompt = `You are the built-in assistant for this AI gateway admin UI. Prefer live gateway data over generic AI knowledge.
 When asked about models, latency, providers, logs, errors, API keys, fallback routes, or configuration, use available gateway context/tools.
 Never invent configured models, latency values, provider names, charts, or metrics. If live data is unavailable, say so clearly.
-Do not output unsupported rich content blocks. Use Markdown tables for structured comparisons. Do not output rich_blocks fences.
-Do not expose secrets or full API keys. Do not claim thinking, reasoning, or planning unless a provider actually returned a reasoning summary.
-Reply normally in Markdown. Do not output executable HTML, CSS, JavaScript, iframes, forms, SVG event handlers, or external resources.
-If the user asks for HTML, show it as a fenced code block.`;
-
-const toolCallSchema = z.object({
-  id: z.string().optional(),
-  function: z.object({
-    name: z.string(),
-    arguments: z.string().default("{}")
-  })
-});
+Use tools when the user asks about live gateway state, current/external information, or anything that can be answered more accurately with tool data.
+You may output rich content by appending a fenced \`\`\`rich_blocks JSON object when a visual or structured artifact is useful. Supported block types are markdown, code, table, chart, function_plot, and math.
+Reply in Markdown by default. Do not emit HTML blocks, raw HTML previews, iframes, scripts, forms, external resources, or network URLs as renderable content.
+Do not expose secrets or full API keys. Do not invent hidden chain-of-thought; visible thinking is supplied by the provider stream when available.
+Reply normally in Markdown unless a rich block genuinely improves the answer.`;
 
 function now() {
   return new Date().toISOString();
@@ -75,215 +71,9 @@ function titleFrom(content: string) {
   return clean.slice(0, 64) || "New chat";
 }
 
-function ms(value: number | null | undefined) {
-  if (!value) return "n/a";
-  return value >= 1000 ? `${(value / 1000).toFixed(1)}s` : `${value} ms`;
-}
-
-function percent(value: number | null | undefined) {
-  if (value === null || value === undefined) return "n/a";
-  return `${(value * 100).toFixed(1)}%`;
-}
-
-function fallbackCount(row: typeof modelRoutes.$inferSelect) {
-  try {
-    return (JSON.parse(row.fallbackJson || "[]") as unknown[]).length;
-  } catch {
-    return 0;
-  }
-}
-
-function detectGatewayIntent(content: string):
-  | "latency_comparison"
-  | "model_list"
-  | "provider_status"
-  | "recent_errors"
-  | "fallback_routes"
-  | "api_key_overview"
-  | "logs_summary"
-  | null {
-  const text = content.toLowerCase();
-  if (/(compare|vergleich|vergleiche|fastest|schnell|latency|latenz|slowest|langsam)/.test(text) && /(model|modell|provider|route|latency|latenz)/.test(text)) {
-    return "latency_comparison";
-  }
-  if (/(model list|models|modelle|configured models|modellliste)/.test(text)) return "model_list";
-  if (/(provider status|providers|provider health|anbieter)/.test(text)) return "provider_status";
-  if (/(recent errors|api errors|fehler|errors|error rate)/.test(text)) return "recent_errors";
-  if (/(fallback|fallback routes|route)/.test(text)) return "fallback_routes";
-  if (/(api key|api keys|keys|schlussel|schluessel)/.test(text)) return "api_key_overview";
-  if (/(logs|log summary|requests|traffic|api behavior)/.test(text)) return "logs_summary";
-  return null;
-}
-
-function modelMetrics() {
-  const routeRows = db.select().from(modelRoutes).all();
-  const requestRows = db.select().from(requests).all();
-  return routeRows.map((route) => {
-    const matching = requestRows.filter((request) => request.modelAlias === route.alias);
-    const errors = matching.filter((request) => request.status === "error").length;
-    const latest = matching.sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
-    return {
-      alias: route.alias,
-      provider: route.provider,
-      realModel: route.realModel,
-      enabled: route.enabled,
-      fallbackCount: fallbackCount(route),
-      requestCount: matching.length,
-      avgLatencyMs: matching.length ? Math.round(matching.reduce((total, request) => total + request.latencyMs, 0) / matching.length) : null,
-      lastLatencyMs: latest?.latencyMs ?? null,
-      errorRate: matching.length ? errors / matching.length : null,
-      status: route.enabled ? "enabled" : "disabled"
-    };
-  });
-}
-
-function gatewayLatencyComparison() {
-  const rows = modelMetrics().sort((a, b) => (a.avgLatencyMs ?? Number.MAX_SAFE_INTEGER) - (b.avgLatencyMs ?? Number.MAX_SAFE_INTEGER));
-  if (!rows.length) return "I don't have access to configured gateway models yet.";
-  const table = [
-    "| Alias | Provider | Real model | Avg latency | Last request | Error rate | Fallbacks | Status |",
-    "| ----- | -------- | ---------- | ----------: | -----------: | ---------: | --------: | ------ |",
-    ...rows.map((row) => `| ${row.alias} | ${row.provider} | ${row.realModel} | ${ms(row.avgLatencyMs)} | ${ms(row.lastLatencyMs)} | ${percent(row.errorRate)} | ${row.fallbackCount} | ${row.status} |`)
-  ].join("\n");
-  const withLatency = rows.filter((row) => row.avgLatencyMs !== null);
-  const fastest = withLatency[0];
-  const slowest = withLatency.at(-1);
-  const elevatedErrors = rows.filter((row) => (row.errorRate ?? 0) > 0.05);
-  return [
-    "Here are your configured gateway models sorted by average latency:",
-    "",
-    table,
-    "",
-    fastest ? `Fastest configured model with traffic: **${fastest.alias}** (${fastest.provider} / ${fastest.realModel}) at ${ms(fastest.avgLatencyMs)} average latency.` : "No request latency data has been recorded yet.",
-    slowest && slowest !== fastest ? `Slowest configured model with traffic: **${slowest.alias}** at ${ms(slowest.avgLatencyMs)} average latency.` : "",
-    elevatedErrors.length ? `Models with elevated error rate: ${elevatedErrors.map((row) => `**${row.alias}** (${percent(row.errorRate)})`).join(", ")}.` : "No configured model currently shows an elevated error rate in recorded gateway traffic.",
-    "",
-    "Recommendation: prefer the fastest enabled model with a low error rate for latency-sensitive gateway traffic; keep fallbacks on slower or less reliable routes."
-  ].filter(Boolean).join("\n");
-}
-
-function gatewayModelList() {
-  const rows = modelMetrics();
-  if (!rows.length) return "I don't have access to configured gateway models yet.";
-  return [
-    "Here are your configured gateway models:",
-    "",
-    "| Alias | Provider | Real model | Status | Fallbacks | Requests | Avg latency | Error rate |",
-    "| ----- | -------- | ---------- | ------ | --------: | -------: | ----------: | ---------: |",
-    ...rows.map((row) => `| ${row.alias} | ${row.provider} | ${row.realModel} | ${row.status} | ${row.fallbackCount} | ${row.requestCount} | ${ms(row.avgLatencyMs)} | ${percent(row.errorRate)} |`)
-  ].join("\n");
-}
-
-function gatewayProviderStatus() {
-  const providerRows = db.select().from(providers).all();
-  const requestRows = db.select().from(requests).all();
-  if (!providerRows.length) return "I don't have access to configured providers yet.";
-  return [
-    "Here is the current gateway provider status from your configuration and recorded traffic:",
-    "",
-    "| Provider | Type | Enabled | Requests | Avg latency | Error rate |",
-    "| -------- | ---- | ------- | -------: | ----------: | ---------: |",
-    ...providerRows.map((provider) => {
-      const matching = requestRows.filter((request) => request.provider === provider.name);
-      const errors = matching.filter((request) => request.status === "error").length;
-      const avgLatency = matching.length ? Math.round(matching.reduce((total, request) => total + request.latencyMs, 0) / matching.length) : null;
-      return `| ${provider.name} | ${provider.type} | ${provider.enabled ? "yes" : "no"} | ${matching.length} | ${ms(avgLatency)} | ${percent(matching.length ? errors / matching.length : null)} |`;
-    })
-  ].join("\n");
-}
-
-function gatewayRecentErrors() {
-  const recent = db.select().from(requests).all()
-    .filter((request) => request.status === "error")
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-    .slice(0, 10);
-  if (!recent.length) return "No recent gateway errors are recorded.";
-  return [
-    "Here are the most recent gateway errors:",
-    "",
-    "| Time | Alias | Provider | Real model | Code | Message |",
-    "| ---- | ----- | -------- | ---------- | ---- | ------- |",
-    ...recent.map((row) => `| ${row.createdAt} | ${row.modelAlias} | ${row.provider} | ${row.realModel} | ${row.errorCode ?? "n/a"} | ${(row.errorMessage ?? "").replace(/\|/g, "/").slice(0, 160)} |`)
-  ].join("\n");
-}
-
-function gatewayFallbackRoutes() {
-  const rows = db.select().from(modelRoutes).all();
-  if (!rows.length) return "I don't have access to configured fallback routes yet.";
-  return [
-    "Here are your configured gateway fallback routes:",
-    "",
-    "| Alias | Primary | Fallbacks | Status |",
-    "| ----- | ------- | --------- | ------ |",
-    ...rows.map((row) => {
-      let fallback: Array<{ provider?: string; model?: string }> = [];
-      try {
-        fallback = JSON.parse(row.fallbackJson || "[]") as Array<{ provider?: string; model?: string }>;
-      } catch {
-        fallback = [];
-      }
-      const fallbackText = fallback.length ? fallback.map((item) => `${item.provider ?? "unknown"} / ${item.model ?? "unknown"}`).join(", ") : "none";
-      return `| ${row.alias} | ${row.provider} / ${row.realModel} | ${fallbackText} | ${row.enabled ? "enabled" : "disabled"} |`;
-    })
-  ].join("\n");
-}
-
-function gatewayApiKeyOverview() {
-  const keyRows = db.select().from(apiKeys).all();
-  const requestRows = db.select().from(requests).all();
-  if (!keyRows.length) return "No API keys are configured.";
-  return [
-    "Here is a safe API key overview. Full key values are not shown.",
-    "",
-    "| Name | Enabled | Monthly limit | Last used | Requests |",
-    "| ---- | ------- | ------------: | --------- | -------: |",
-    ...keyRows.map((key) => `| ${key.name} | ${key.enabled ? "yes" : "no"} | ${key.monthlyLimit ?? "none"} | ${key.lastUsedAt ?? "never"} | ${requestRows.filter((request) => request.apiKeyId === key.id).length} |`)
-  ].join("\n");
-}
-
-function gatewayLogsSummary() {
-  const rows = db.select().from(requests).all();
-  if (!rows.length) return "No gateway request logs are recorded yet.";
-  const recent = rows.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 10);
-  const errors = rows.filter((row) => row.status === "error").length;
-  const avgLatency = Math.round(rows.reduce((total, row) => total + row.latencyMs, 0) / rows.length);
-  return [
-    `Recorded gateway traffic: **${rows.length} requests**, **${errors} errors**, average latency **${ms(avgLatency)}**.`,
-    "",
-    "| Time | Alias | Provider | Status | Latency |",
-    "| ---- | ----- | -------- | ------ | ------: |",
-    ...recent.map((row) => `| ${row.createdAt} | ${row.modelAlias} | ${row.provider} | ${row.status} | ${ms(row.latencyMs)} |`)
-  ].join("\n");
-}
-
-function answerGatewayIntent(intent: NonNullable<ReturnType<typeof detectGatewayIntent>>) {
-  if (intent === "latency_comparison") return gatewayLatencyComparison();
-  if (intent === "model_list") return gatewayModelList();
-  if (intent === "provider_status") return gatewayProviderStatus();
-  if (intent === "recent_errors") return gatewayRecentErrors();
-  if (intent === "fallback_routes") return gatewayFallbackRoutes();
-  if (intent === "api_key_overview") return gatewayApiKeyOverview();
-  if (intent === "logs_summary") return gatewayLogsSummary();
-  return "I don't have access to live gateway metrics yet.";
-}
-
 function textForContext(message: typeof chatMessages.$inferSelect) {
-  const metadata = parseJson(message.metadataJson, {}) as { compactSummary?: string; reasoningText?: string };
-  const content = metadata.compactSummary || message.contentText;
-  if (message.role !== "assistant" || !metadata.reasoningText) {
-    return content;
-  }
-  return `Previous visible reasoning for this assistant response:\n${metadata.reasoningText}\n\nAssistant response:\n${content}`;
-}
-
-function rawAssistantMessage(raw: unknown): { content: string; toolCalls: Array<z.infer<typeof toolCallSchema>> } {
-  const choice = (raw as any)?.choices?.[0];
-  const message = choice?.message ?? {};
-  const content = typeof message.content === "string" ? message.content : "";
-  const toolCalls = Array.isArray(message.tool_calls)
-    ? message.tool_calls.map((call: unknown) => toolCallSchema.safeParse(call)).filter((result: any) => result.success).map((result: any) => result.data)
-    : [];
-  return { content, toolCalls };
+  const metadata = parseJson(message.metadataJson, {}) as { compactSummary?: string };
+  return metadata.compactSummary || message.contentText;
 }
 
 function normalizeBlocks(blocks: RichBlocks): RichBlocks {
@@ -315,10 +105,15 @@ function buildContext(threadId: string): { messages: InternalMessage[]; compacte
     { role: "system", content: assistantSystemPrompt },
     ...kept
       .filter((message) => message.role === "user" || message.role === "assistant" || message.role === "tool")
-      .map((message) => ({
-        role: message.role as InternalMessage["role"],
-        content: textForContext(message)
-      }))
+      .map((message) => {
+        const metadata = parseJson(message.metadataJson, {}) as { reasoningContent?: string; thinkingContent?: string };
+        return {
+          role: message.role as InternalMessage["role"],
+          content: textForContext(message),
+          reasoningContent: message.role === "assistant" ? metadata.reasoningContent : undefined,
+          thinkingContent: message.role === "assistant" ? metadata.thinkingContent : undefined
+        };
+      })
   ];
   return { messages, compacted };
 }
@@ -364,12 +159,131 @@ function emitSse(controller: ReadableStreamDefaultController<Uint8Array>, event:
   controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`));
 }
 
-async function emitText(controller: ReadableStreamDefaultController<Uint8Array>, content: string) {
-  const parts = content.split(/(\s+)/).filter(Boolean);
-  for (const part of parts) {
-    emitSse(controller, { type: "delta", content: part });
-    await new Promise((resolve) => setTimeout(resolve, 8));
+type StreamToolCall = {
+  id?: string;
+  type?: string;
+  function: {
+    name: string;
+    arguments: string;
+  };
+};
+
+type ModelStreamResult = {
+  content: string;
+  reasoningText: string;
+  thinkingText: string;
+  toolCalls: StreamToolCall[];
+  usage: { inputTokens?: number; outputTokens?: number; totalTokens?: number };
+  finishReason: string | null;
+};
+
+function mergeUsage(target: ModelStreamResult["usage"], usage: unknown) {
+  if (!usage || typeof usage !== "object") return;
+  const value = usage as {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+  };
+  target.inputTokens = value.prompt_tokens ?? target.inputTokens;
+  target.outputTokens = value.completion_tokens ?? target.outputTokens;
+  target.totalTokens = value.total_tokens ?? target.totalTokens;
+}
+
+function appendToolCallFragment(map: Map<number, StreamToolCall>, fragment: any) {
+  const index = typeof fragment.index === "number" ? fragment.index : map.size;
+  const current = map.get(index) ?? { id: fragment.id, type: fragment.type, function: { name: "", arguments: "" } };
+  if (typeof fragment.id === "string") current.id = fragment.id;
+  if (typeof fragment.type === "string") current.type = fragment.type;
+  if (fragment.function && typeof fragment.function === "object") {
+    if (typeof fragment.function.name === "string") current.function.name += fragment.function.name;
+    if (typeof fragment.function.arguments === "string") current.function.arguments += fragment.function.arguments;
   }
+  map.set(index, current);
+}
+
+async function readModelStream(
+  stream: ReadableStream<Uint8Array>,
+  controller: ReadableStreamDefaultController<Uint8Array>
+): Promise<ModelStreamResult> {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  const toolCallMap = new Map<number, StreamToolCall>();
+  const result: ModelStreamResult = {
+    content: "",
+    reasoningText: "",
+    thinkingText: "",
+    toolCalls: [],
+    usage: {},
+    finishReason: null
+  };
+  let buffer = "";
+
+  function processPayload(payload: string) {
+    if (!payload || payload === "[DONE]") return;
+    let parsed: any;
+    try {
+      parsed = JSON.parse(payload);
+    } catch {
+      return;
+    }
+
+    mergeUsage(result.usage, parsed.usage);
+    const choice = Array.isArray(parsed.choices) ? parsed.choices[0] : null;
+    if (!choice) return;
+    mergeUsage(result.usage, choice.usage);
+    if (choice.finish_reason) result.finishReason = choice.finish_reason;
+
+    const delta = choice.delta ?? choice.message ?? {};
+    const reasoning = typeof delta.reasoning_content === "string" ? delta.reasoning_content : "";
+    const thinking = typeof delta.thinking_content === "string" ? delta.thinking_content : "";
+    const content = typeof delta.content === "string" ? delta.content : "";
+
+    if (reasoning) {
+      result.reasoningText += reasoning;
+      emitSse(controller, { type: "reasoning_delta", content: reasoning });
+    }
+    if (thinking) {
+      result.thinkingText += thinking;
+      emitSse(controller, { type: "reasoning_delta", content: thinking });
+    }
+    if (content) {
+      result.content += content;
+      emitSse(controller, { type: "delta", content });
+    }
+    if (Array.isArray(delta.tool_calls)) {
+      for (const fragment of delta.tool_calls) {
+        appendToolCallFragment(toolCallMap, fragment);
+      }
+    }
+  }
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const events = buffer.split("\n\n");
+    buffer = events.pop() ?? "";
+    for (const event of events) {
+      const dataLines = event.split("\n")
+        .filter((line) => line.startsWith("data: "))
+        .map((line) => line.slice(6).trim());
+      for (const payload of dataLines) {
+        processPayload(payload);
+      }
+    }
+  }
+  if (buffer.trim()) {
+    for (const line of buffer.split("\n")) {
+      if (line.startsWith("data: ")) processPayload(line.slice(6).trim());
+    }
+  }
+
+  result.toolCalls = [...toolCallMap.values()].filter((call) => call.function.name);
+  return result;
+}
+
+function shouldUseZaiThinking(route: ReturnType<typeof resolveModel>) {
+  return route.attempts.length > 0 && route.attempts.every((attempt) => attempt.provider === "z-ai" || attempt.model.toLowerCase().startsWith("glm"));
 }
 
 export function getThreadPayload(threadId: string) {
@@ -388,7 +302,7 @@ export function getThreadPayload(threadId: string) {
   return { thread, messages, runs, steps };
 }
 
-export function createChatRunStream(input: { threadId?: string; content: string; modelAlias: string }) {
+export function createChatRunStream(input: { threadId?: string; content: string; modelAlias: string; webSearch?: boolean }) {
   return new ReadableStream<Uint8Array>({
     async start(controller) {
       let runId = "";
@@ -448,55 +362,6 @@ export function createChatRunStream(input: { threadId?: string; content: string;
         db.insert(chatRuns).values(run).run();
         emitSse(controller, { type: "run", run });
 
-        const gatewayIntent = detectGatewayIntent(input.content);
-        if (gatewayIntent) {
-          const contextStep = createStep(runId, "tool", "Gateway data", { intent: gatewayIntent }, "running");
-          emitSse(controller, { type: "step", step: serializeStep(contextStep) });
-          const finalText = answerGatewayIntent(gatewayIntent);
-          const completedStep = completeStep(contextStep.id, { source: "local gateway admin database", intent: gatewayIntent });
-          emitSse(controller, { type: "step", step: serializeStep(completedStep) });
-
-          const finalMessage = {
-            id: nanoid(),
-            threadId,
-            role: "assistant",
-            contentText: finalText,
-            contentBlocksJson: JSON.stringify(markdownOnly(finalText)),
-            modelAlias: input.modelAlias,
-            provider: target?.provider ?? null,
-            realModel: target?.model ?? null,
-            metadataJson: JSON.stringify({
-              runId,
-              deterministicGatewayIntent: gatewayIntent,
-              inputTokens: null,
-              outputTokens: null,
-              totalTokens: null
-            }),
-            createdAt: now()
-          };
-          await emitText(controller, finalText);
-          db.insert(chatMessages).values(finalMessage).run();
-          const completedAt = now();
-          const latencyMs = Date.parse(completedAt) - Date.parse(run.startedAt);
-          db.update(chatRuns)
-            .set({
-              status: "completed",
-              completedAt,
-              latencyMs,
-              inputTokens: null,
-              outputTokens: null,
-              totalTokens: null,
-              estimatedCost: null
-            })
-            .where(eq(chatRuns.id, runId))
-            .run();
-          db.update(chatThreads).set({ updatedAt: completedAt }).where(eq(chatThreads.id, threadId)).run();
-          const savedRun = db.select().from(chatRuns).where(eq(chatRuns.id, runId)).get()!;
-          emitSse(controller, { type: "done", message: serializeMessage(finalMessage), run: savedRun });
-          controller.close();
-          return;
-        }
-
         const context = buildContext(threadId);
         if (context.compacted) {
           const compact = createStep(runId, "compact", "Context compacted", { maxMessages: env.CHAT_CONTEXT_MAX_MESSAGES }, "completed");
@@ -504,8 +369,11 @@ export function createChatRunStream(input: { threadId?: string; content: string;
         }
 
         let messages: InternalMessage[] = context.messages;
-        const tools = openAiToolDefinitions();
+        const toolOptions = { webSearchEnabled: input.webSearch === true };
+        const tools = openAiToolDefinitions(toolOptions);
         let finalText = "";
+        let finalReasoningText = "";
+        let finalThinkingText = "";
         let finalProvider = target?.provider ?? null;
         let finalModel = target?.model ?? null;
         let usage: { inputTokens?: number; outputTokens?: number; totalTokens?: number } = {};
@@ -513,42 +381,66 @@ export function createChatRunStream(input: { threadId?: string; content: string;
         for (let stepIndex = 0; stepIndex < env.CHAT_AGENT_MAX_STEPS; stepIndex += 1) {
           const modelStep = createStep(runId, "model", "Provider call", { stepIndex, modelAlias: input.modelAlias, route: route.attempts });
           emitSse(controller, { type: "step", step: serializeStep(modelStep) });
-          const result = await executeWithFallback(
+          const extraBody: Record<string, unknown> = {};
+          if (tools.length) extraBody.tool_choice = "auto";
+          if (shouldUseZaiThinking(route)) {
+            extraBody.thinking = { type: "enabled", clear_thinking: false };
+          }
+          const result = await executeStreamWithFallback(
             {
               modelAlias: input.modelAlias,
               messages,
               maxTokens: 4000,
-              stream: false,
+              stream: true,
+              streamOptions: { include_usage: true },
               tools: tools.length ? tools : undefined,
-              extraBody: tools.length ? { tool_choice: "auto" } : undefined
+              extraBody: Object.keys(extraBody).length ? extraBody : undefined
             },
             CHAT_API_KEY_ID
           );
-          completeStep(modelStep.id, { provider: result.provider, realModel: result.realModel, latencyMs: result.latencyMs });
-          emitSse(controller, { type: "step", step: serializeStep(db.select().from(chatSteps).where(eq(chatSteps.id, modelStep.id)).get()!) });
-
           finalProvider = result.provider;
           finalModel = result.realModel;
-          usage = result.response.usage ?? usage;
-          const { content, toolCalls } = rawAssistantMessage(result.response.raw);
-          if (toolCalls.length && tools.length) {
+          const streamed = await readModelStream(result.stream, controller);
+          usage = {
+            inputTokens: streamed.usage.inputTokens ?? usage.inputTokens,
+            outputTokens: streamed.usage.outputTokens ?? usage.outputTokens,
+            totalTokens: streamed.usage.totalTokens ?? usage.totalTokens
+          };
+          completeStep(modelStep.id, {
+            provider: result.provider,
+            realModel: result.realModel,
+            finishReason: streamed.finishReason,
+            contentChars: streamed.content.length,
+            reasoningChars: streamed.reasoningText.length + streamed.thinkingText.length
+          });
+          emitSse(controller, { type: "step", step: serializeStep(db.select().from(chatSteps).where(eq(chatSteps.id, modelStep.id)).get()!) });
+
+          if (streamed.toolCalls.length && tools.length) {
             messages = [
               ...messages,
-              { role: "assistant", content: content || null, toolCalls }
+              {
+                role: "assistant",
+                content: streamed.content || null,
+                toolCalls: streamed.toolCalls,
+                reasoningContent: streamed.reasoningText || undefined,
+                thinkingContent: streamed.thinkingText || undefined
+              }
             ];
-            for (const call of toolCalls) {
+            for (const call of streamed.toolCalls) {
               let args: unknown = {};
               try {
                 args = JSON.parse(call.function.arguments || "{}");
               } catch {
                 args = {};
               }
+              emitSse(controller, { type: "tool_call", toolCall: call });
               const toolStep = createStep(runId, "tool", call.function.name, args);
               emitSse(controller, { type: "step", step: serializeStep(toolStep) });
               try {
-                const output = await executeChatTool(call.function.name, args);
+                const output = await executeChatTool(call.function.name, args, toolOptions);
                 const completed = completeStep(toolStep.id, output);
                 emitSse(controller, { type: "step", step: serializeStep(completed) });
+                emitSse(controller, { type: "tool_result", toolCallId: call.id, toolName: call.function.name, result: output });
                 messages = [
                   ...messages,
                   {
@@ -560,21 +452,30 @@ export function createChatRunStream(input: { threadId?: string; content: string;
               } catch (error) {
                 const completed = completeStep(toolStep.id, { error: error instanceof Error ? error.message : "Tool failed" }, "failed");
                 emitSse(controller, { type: "step", step: serializeStep(completed) });
+                emitSse(controller, { type: "tool_result", toolCallId: call.id, toolName: call.function.name, result: { error: error instanceof Error ? error.message : "Tool failed" } });
                 messages = [...messages, { role: "tool", toolCallId: call.id, content: JSON.stringify({ error: "Tool failed" }) }];
               }
             }
             continue;
           }
-          finalText = content || String(result.response.content ?? "");
+          finalText = streamed.content;
+          finalReasoningText = streamed.reasoningText;
+          finalThinkingText = streamed.thinkingText;
           break;
         }
 
         if (!finalText) {
           finalText = "I reached the step limit before producing a final answer.";
+          emitSse(controller, { type: "delta", content: finalText });
         }
 
         const parsed = parseRichBlocksFromText(finalText);
         const blocks = normalizeBlocks(richBlocksSchema.parse(parsed.blocks));
+        for (const block of blocks.blocks) {
+          if (block.type !== "markdown") {
+            emitSse(controller, { type: "rich_block", block });
+          }
+        }
         const finalMessage = {
           id: nanoid(),
           threadId,
@@ -586,13 +487,15 @@ export function createChatRunStream(input: { threadId?: string; content: string;
           realModel: finalModel,
           metadataJson: JSON.stringify({
             runId,
+            reasoningText: finalReasoningText || finalThinkingText || undefined,
+            reasoningContent: finalReasoningText || undefined,
+            thinkingContent: finalThinkingText || undefined,
             inputTokens: usage.inputTokens ?? null,
             outputTokens: usage.outputTokens ?? null,
             totalTokens: usage.totalTokens ?? null
           }),
           createdAt: now()
         };
-        await emitText(controller, parsed.text);
         db.insert(chatMessages).values(finalMessage).run();
         const completedAt = now();
         const latencyMs = Date.parse(completedAt) - Date.parse(run.startedAt);

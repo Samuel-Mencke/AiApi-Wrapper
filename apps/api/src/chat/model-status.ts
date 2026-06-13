@@ -24,6 +24,17 @@ const defaultModelCapabilities = {
   supportsRichBlocks: false
 };
 
+function capabilitiesFor(model: { provider: string; model: string }) {
+  const realModel = model.model.toLowerCase();
+  const isGlm = model.provider === "z-ai" || realModel.startsWith("glm");
+  return {
+    ...defaultModelCapabilities,
+    supportsReasoning: isGlm,
+    exposesReasoningSummary: isGlm,
+    supportsRichBlocks: true
+  };
+}
+
 export function listChatModels() {
   return listModelAliases()
     .filter((model) => model.enabled)
@@ -38,7 +49,7 @@ export function listChatModels() {
         status: cached && cached.expiresAt > Date.now() ? cached.status : "untested",
         statusMessage: cached && cached.expiresAt > Date.now() ? cached.message : null,
         latencyMs: cached && cached.expiresAt > Date.now() ? cached.latencyMs : null,
-        modelCapabilities: defaultModelCapabilities
+        modelCapabilities: capabilitiesFor(model)
       };
     });
 }
