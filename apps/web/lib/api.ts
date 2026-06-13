@@ -1,25 +1,36 @@
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:18789";
+export const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:18789";
 
 export interface ApiEnvelope<T> {
   data: T;
 }
 
-export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+export async function apiFetch<T>(
+  path: string,
+  init?: RequestInit,
+): Promise<T> {
+  const hasBody = init?.body != null;
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     credentials: "include",
     headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {})
-    }
+      ...(hasBody ? { "Content-Type": "application/json" } : {}),
+      ...(init?.headers ?? {}),
+    },
   });
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    if (response.status === 401 && typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+    if (
+      response.status === 401 &&
+      typeof window !== "undefined" &&
+      !window.location.pathname.startsWith("/login")
+    ) {
       window.location.href = "/login";
     }
-    throw new Error(body?.error?.message ?? `Request failed: ${response.status}`);
+    throw new Error(
+      body?.error?.message ?? `Request failed: ${response.status}`,
+    );
   }
 
   return response.json() as Promise<T>;
