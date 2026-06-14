@@ -17,14 +17,18 @@ function mapItem(value: unknown): void {
   const identity = splitNamespacedToolName(item.name);
   item.name = identity.name;
   if (identity.namespace) item.namespace = identity.namespace;
+  else delete item.namespace;
+}
+
+function mapResponse(response: Record<string, unknown>): void {
+  const output = response.output;
+  if (Array.isArray(output)) output.forEach(mapItem);
 }
 
 function mapPayload(payload: Record<string, unknown>): void {
   mapItem(payload.item);
   const response = payload.response;
-  if (!response || typeof response !== "object") return;
-  const output = (response as Record<string, unknown>).output;
-  if (Array.isArray(output)) output.forEach(mapItem);
+  if (response && typeof response === "object") mapResponse(response as Record<string, unknown>);
 }
 
 function mapLine(line: string): string {
@@ -44,7 +48,13 @@ export function createResponsesSseStream(
   providerStream: ReadableStream<Uint8Array>,
   options: StreamOptions
 ): ReadableStream<Uint8Array> {
-  const source = createBaseStream(providerStream, options);
+  const source = createBaseStream(providerStream, {
+    ...options,
+    onComplete(response, usage) {
+      mapResponse(response);
+      options.onComplete(response, usage);
+    }
+  });
   const decoder = new TextDecoder();
   const encoder = new TextEncoder();
   let pending = "";
