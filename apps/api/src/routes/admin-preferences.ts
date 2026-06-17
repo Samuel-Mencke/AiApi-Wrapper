@@ -5,7 +5,12 @@ import { db } from "../db/client.js";
 import { userPreferences } from "../db/schema.js";
 import { requireAdminAuth } from "../middleware/auth.js";
 
-const VALID_THEME_IDS = [
+// Valid IDs for the new base:accent format
+const VALID_BASE_IDS = ["obsidian", "midnight", "warm", "slate", "forest"];
+const VALID_ACCENT_IDS = ["blue", "green", "violet", "orange", "cyan", "rose", "amber", "indigo", "teal", "pink"];
+
+// Legacy theme IDs (still accepted for backwards compat)
+const LEGACY_THEME_IDS = [
   "claude-warm", "midnight", "pure-dark", "forest", "sunset",
   "ocean", "lavender", "rose", "slate", "nordic"
 ];
@@ -16,19 +21,29 @@ const putBodySchema = z.object({
   themeId: z.string().min(1)
 });
 
+function isValidThemeId(raw: string): boolean {
+  // New format: "base:accent"
+  if (raw.includes(":")) {
+    const [base, accent] = raw.split(":");
+    return VALID_BASE_IDS.includes(base) && VALID_ACCENT_IDS.includes(accent);
+  }
+  // Legacy format
+  return LEGACY_THEME_IDS.includes(raw);
+}
+
 export async function adminPreferencesRoutes(app: FastifyInstance) {
   app.get("/admin/preferences", { preHandler: requireAdminAuth }, async () => {
     const row = db.select().from(userPreferences).where(eq(userPreferences.id, PREF_ROW_ID)).get();
     return {
       data: {
-        themeId: row?.themeId ?? "claude-warm"
+        themeId: row?.themeId ?? "obsidian:green"
       }
     };
   });
 
   app.put("/admin/preferences", { preHandler: requireAdminAuth }, async (request) => {
     const parsed = putBodySchema.parse(request.body);
-    if (!VALID_THEME_IDS.includes(parsed.themeId)) {
+    if (!isValidThemeId(parsed.themeId)) {
       return { error: { message: `Invalid themeId: ${parsed.themeId}`, type: "invalid_request_error" } };
     }
     const now = new Date().toISOString();
