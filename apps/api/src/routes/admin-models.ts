@@ -11,7 +11,7 @@ import { createOpenAiCompatibleAdapter } from "../providers/openai-compatible.js
 import { openAiAdapter } from "../providers/openai.js";
 import { openRouterAdapter } from "../providers/openrouter.js";
 import type { ProviderAdapter } from "../providers/types.js";
-import { getProviderConfig, resolveModel } from "../router/resolve-model.js";
+import { getProviderConfig, invalidateRouteCache, resolveModel } from "../router/resolve-model.js";
 
 const routeBody = z.object({
   alias: z.string().min(1),
@@ -54,6 +54,7 @@ export async function adminModelRoutes(app: FastifyInstance): Promise<void> {
       createdAt: new Date().toISOString()
     };
     db.insert(modelRoutes).values(row).run();
+    invalidateRouteCache();
     return row;
   });
 
@@ -70,12 +71,14 @@ export async function adminModelRoutes(app: FastifyInstance): Promise<void> {
       })
       .where(eq(modelRoutes.id, params.id))
       .run();
+    invalidateRouteCache();
     return db.select().from(modelRoutes).where(eq(modelRoutes.id, params.id)).get();
   });
 
   app.delete("/admin/models/:id", { preHandler: requireAdminAuth }, async (request) => {
     const params = z.object({ id: z.string() }).parse(request.params);
     db.delete(modelRoutes).where(eq(modelRoutes.id, params.id)).run();
+    invalidateRouteCache();
     return { ok: true };
   });
 

@@ -133,7 +133,7 @@ export function ApiKeyTable({ data, onChanged }: { data: ApiKeyRow[]; onChanged:
         ))}
         {!data.length ? (
           <tr>
-            <Td colSpan={6} className="py-8 text-center text-zinc-500">No API keys found.</Td>
+            <Td colSpan={6} className="py-8 text-center text-[#807a6f]">No API keys found.</Td>
           </tr>
         ) : null}
       </tbody>

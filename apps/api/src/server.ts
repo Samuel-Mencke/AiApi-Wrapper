@@ -21,8 +21,12 @@ import { ensureInternalChatApiKey } from "./chat/internal-api-key.js";
 
 const app = Fastify({
   logger: {
-    level: "info"
-  }
+    level: "warn"
+  },
+  // Performance: disable body cloning (we parse manually where needed)
+  disableRequestLogging: true,
+  // Trust proxy for correct IPs behind Cloudflare Tunnel
+  trustProxy: true
 });
 
 app.setErrorHandler(errorHandler);

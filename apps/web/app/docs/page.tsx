@@ -192,7 +192,7 @@ apiKey: "any-local-value-or-your-generated-key"`;
 
 function CodeBlock({ children }: { children: string }) {
   return (
-    <pre className="overflow-x-auto rounded-xl border border-white/[0.06] bg-[#111111] p-4 text-xs leading-6 text-zinc-200">
+    <pre className="overflow-x-auto rounded-xl border border-white/[0.06] bg-[#111111] p-4 text-xs leading-6 text-[#b8b3a8]">
       <code>{children}</code>
     </pre>
   );
@@ -203,8 +203,8 @@ export default function DocsPage() {
     <PageShell>
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-semibold text-zinc-100">Docs</h1>
-          <p className="mt-1 text-sm text-zinc-500">
+          <h1 className="text-2xl font-semibold text-[#ece9e4]">Docs</h1>
+          <p className="mt-1 text-sm text-[#807a6f]">
             Short reference for your local OpenAI-compatible gateway.
           </p>
         </div>
@@ -215,10 +215,10 @@ export default function DocsPage() {
               <CardTitle>Base URL</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="font-mono text-sm text-zinc-100">
+              <div className="font-mono text-sm text-[#ece9e4]">
                 {API_BASE_URL}
               </div>
-              <div className="mt-2 text-sm text-zinc-500">
+              <div className="mt-2 text-sm text-[#807a6f]">
                 Use this for direct gateway calls.
               </div>
             </CardContent>
@@ -228,10 +228,10 @@ export default function DocsPage() {
               <CardTitle>OpenAI-style URL</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="font-mono text-sm text-zinc-100">
+              <div className="font-mono text-sm text-[#ece9e4]">
                 {API_BASE_URL}/v1
               </div>
-              <div className="mt-2 text-sm text-zinc-500">
+              <div className="mt-2 text-sm text-[#807a6f]">
                 Use this as SDK base URL.
               </div>
             </CardContent>
@@ -242,7 +242,7 @@ export default function DocsPage() {
             </CardHeader>
             <CardContent>
               <Badge>Personal mode</Badge>
-              <div className="mt-2 text-sm text-zinc-500">
+              <div className="mt-2 text-sm text-[#807a6f]">
                 Bearer keys are optional locally.
               </div>
             </CardContent>
@@ -302,10 +302,10 @@ export default function DocsPage() {
           </CardHeader>
           <CardContent>
             <CodeBlock>{responsesCurl}</CodeBlock>
-            <p className="mt-3 text-sm text-zinc-500">
+            <p className="mt-3 text-sm text-[#807a6f]">
               For Codex-style clients. Stored responses can be retrieved by ID
-              unless <code className="text-zinc-300">store</code> is set to{" "}
-              <code className="text-zinc-300">false</code>.
+              unless <code className="text-[#b8b3a8]">store</code> is set to{" "}
+              <code className="text-[#b8b3a8]">false</code>.
             </p>
           </CardContent>
         </Card>
@@ -316,7 +316,7 @@ export default function DocsPage() {
           </CardHeader>
           <CardContent>
             <CodeBlock>{openAiStyle}</CodeBlock>
-            <p className="mt-3 text-sm text-zinc-500">
+            <p className="mt-3 text-sm text-[#807a6f]">
               Provider keys stay in the gateway. Client tools only need the
               local base URL and a model alias.
             </p>

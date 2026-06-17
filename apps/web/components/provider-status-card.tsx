@@ -116,7 +116,7 @@ export function ProviderStatusCard({
   }
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-[#181818] p-5">
+    <div className="rounded-xl border border-white/[0.06] bg-[#2a2825] p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           {editing ? (
@@ -128,7 +128,7 @@ export function ProviderStatusCard({
               />
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-[140px_1fr]">
                 <select
-                  className="h-8 rounded-lg border border-white/[0.07] bg-[#101010] px-2 text-sm text-zinc-100 outline-none"
+                  className="h-8 rounded-lg border border-white/[0.07] bg-[#1f1e1c] px-2 text-sm text-[#ece9e4] outline-none"
                   value={draft.type}
                   onChange={(event) => setDraft((value) => ({ ...value, type: event.target.value }))}
                 >
@@ -148,35 +148,35 @@ export function ProviderStatusCard({
             </div>
           ) : (
             <>
-              <div className="font-medium text-zinc-100">{provider.name}</div>
-              <div className="mt-1 break-all text-sm text-zinc-500">{provider.baseUrl ?? "Default provider endpoint"}</div>
+              <div className="font-medium text-[#ece9e4]">{provider.name}</div>
+              <div className="mt-1 break-all text-sm text-[#807a6f]">{provider.baseUrl ?? "Default provider endpoint"}</div>
             </>
           )}
         </div>
-        <Badge className={provider.enabled ? "border-[#3ddc97]/30 bg-[#3ddc97]/10 text-[#82efbf]" : "border-white/[0.06] text-zinc-500"}>
+        <Badge className={provider.enabled ? "border-[#7aab5e]/30 bg-[#7aab5e]/10 text-[#9bc480]" : "border-white/[0.06] text-[#807a6f]"}>
           {provider.enabled ? "Enabled" : "Disabled"}
         </Badge>
       </div>
 
       {error ? (
-        <div className="mt-4 rounded-lg border border-[#ff5c7a]/30 bg-[#ff5c7a]/10 p-3 text-sm text-[#ff9aad]">{error}</div>
+        <div className="mt-4 rounded-lg border border-[#d65d5d]/30 bg-[#d65d5d]/10 p-3 text-sm text-[#e08585]">{error}</div>
       ) : null}
 
       {result ? (
-        <div className={`mt-4 rounded-xl border p-3 text-sm ${result.ok ? "border-[#3ddc97]/30 bg-[#3ddc97]/10 text-[#82efbf]" : "border-[#ff5c7a]/30 bg-[#ff5c7a]/10 text-[#ff9aad]"}`}>
+        <div className={`mt-4 rounded-xl border p-3 text-sm ${result.ok ? "border-[#7aab5e]/30 bg-[#7aab5e]/10 text-[#9bc480]" : "border-[#d65d5d]/30 bg-[#d65d5d]/10 text-[#e08585]"}`}>
           <div className="flex items-center gap-2">
             <Zap className="h-4 w-4" />
             <span className="font-medium">{result.ok ? "Success" : "Failed"}</span>
             {result.latencyMs != null && (
-              <span className="ml-auto text-xs text-zinc-400">{result.latencyMs}ms</span>
+              <span className="ml-auto text-xs text-[#807a6f]">{result.latencyMs}ms</span>
             )}
           </div>
-          <div className="mt-1 break-all text-xs text-zinc-400">{result.message}</div>
+          <div className="mt-1 break-all text-xs text-[#807a6f]">{result.message}</div>
         </div>
       ) : null}
 
       <div className="mt-4 flex items-center justify-between">
-        <div className="text-xs uppercase text-zinc-500">{provider.type}</div>
+        <div className="text-xs uppercase text-[#807a6f]">{provider.type}</div>
         <div className="flex gap-2">
           {editing ? (
             <>

@@ -111,7 +111,7 @@ type TooltipPayloadItem = {
   value?: string | number;
 };
 
-const colors = ["#3ddc97", "#f4c84a", "#ff5c7a", "#58b9ff", "#d66dff", "#71e3e8", "#f58d49", "#a1a1aa"];
+const colors = ["#7aab5e", "#e0a83e", "#d65d5d", "#6ba4d0", "#d66dff", "#71e3e8", "#f58d49", "#b8b3a8"];
 const chartModes = [
   { id: "total", label: "Total" },
   { id: "provider", label: "Provider" },
@@ -123,8 +123,8 @@ type ChartMode = (typeof chartModes)[number]["id"];
 const chartBucketCount = 24;
 
 const chartAxis = {
-  stroke: "#52525b",
-  tick: { fill: "#71717a", fontSize: 12 },
+  stroke: "#807a6f",
+  tick: { fill: "#807a6f", fontSize: 12 },
   tickLine: false,
   axisLine: { stroke: "rgba(255,255,255,.08)" }
 };
@@ -246,16 +246,16 @@ function keyedRequestSparkline(rows: Stats["requestsByModelOverTime"], key?: str
 function DashboardTooltip({ active, label, payload }: { active?: boolean; label?: string | number; payload?: TooltipPayloadItem[] }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="min-w-36 rounded-lg border border-white/[0.08] bg-[#111113]/95 px-3 py-2 shadow-2xl shadow-black/40">
-      <div className="mb-2 text-xs text-zinc-500">{label ? formatTime(label) : "Metric"}</div>
+    <div className="min-w-36 rounded-lg border border-white/[0.08] bg-[#232220]/95 px-3 py-2 shadow-2xl shadow-black/40">
+      <div className="mb-2 text-xs text-[#807a6f]">{label ? formatTime(label) : "Metric"}</div>
       <div className="space-y-1.5">
         {payload.map((item) => (
           <div key={`${item.dataKey ?? item.name}`} className="flex items-center justify-between gap-5 text-xs">
-            <span className="flex min-w-0 items-center gap-2 text-zinc-400">
-              <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: item.color ?? "#a1a1aa" }} />
+            <span className="flex min-w-0 items-center gap-2 text-[#807a6f]">
+              <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: item.color ?? "#b8b3a8" }} />
               <span className="truncate">{item.name ?? item.dataKey}</span>
             </span>
-            <span className="font-medium text-zinc-100">{typeof item.value === "number" ? formatNumber(item.value) : item.value}</span>
+            <span className="font-medium text-[#ece9e4]">{typeof item.value === "number" ? formatNumber(item.value) : item.value}</span>
           </div>
         ))}
       </div>
@@ -267,7 +267,7 @@ function InlineLegend({ keys }: { keys: string[] }) {
   return (
     <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
       {keys.map((key, index) => (
-        <div key={key} className="flex items-center gap-2 text-xs text-zinc-400">
+        <div key={key} className="flex items-center gap-2 text-xs text-[#807a6f]">
           <span className="h-2.5 w-2.5 rounded-sm" style={{ background: colors[index % colors.length] }} />
           <span className="max-w-28 truncate">{key}</span>
         </div>
@@ -278,7 +278,7 @@ function InlineLegend({ keys }: { keys: string[] }) {
 
 function EmptyChart({ label }: { label: string }) {
   return (
-    <div className="flex h-full min-h-40 items-center justify-center rounded-lg border border-dashed border-white/[0.08] bg-[#101010] text-sm text-zinc-500">
+    <div className="flex h-full min-h-40 items-center justify-center rounded-lg border border-dashed border-white/[0.08] bg-[#1f1e1c] text-sm text-[#807a6f]">
       {label}
     </div>
   );
@@ -312,18 +312,18 @@ function QuotaMeter({ label, used, limit, value }: { label: string; used: number
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-3 text-xs">
-        <span className="text-zinc-500">{label}</span>
-        <span className="shrink-0 text-zinc-300">
+        <span className="text-[#807a6f]">{label}</span>
+        <span className="shrink-0 text-[#b8b3a8]">
           {formatNumber(used)} {limit ? `/ ${formatNumber(limit)}` : ""}
         </span>
       </div>
-      <div className="h-2 overflow-hidden rounded-full bg-[#252528]">
+      <div className="h-2 overflow-hidden rounded-full bg-[#7aab5e]/8">
         <div
-          className={cn("h-full rounded-full", value !== null && value > 0.85 ? "bg-[#f4c84a]" : "bg-[#3ddc97]")}
+          className={cn("h-full rounded-full", value !== null && value > 0.85 ? "bg-[#e0a83e]" : "bg-[#7aab5e]")}
           style={{ width: `${limit ? width : 12}%` }}
         />
       </div>
-      <div className="text-xs text-zinc-500">{percent(value)}</div>
+      <div className="text-xs text-[#807a6f]">{percent(value)}</div>
     </div>
   );
 }
@@ -347,10 +347,10 @@ function TopUsagePanel({ title, rows, metric }: { title: string; rows: UsageAggr
   }
 
   return (
-    <Card className="bg-[#141414]">
+    <Card className="bg-[#232220]">
       <CardHeader className="flex flex-row items-center justify-between gap-3">
         <CardTitle>{title}</CardTitle>
-        <span className="text-xs text-zinc-500">{topRows.length ? "Top 6" : "No data"}</span>
+        <span className="text-xs text-[#807a6f]">{topRows.length ? "Top 6" : "No data"}</span>
       </CardHeader>
       <CardContent className="space-y-4">
         {topRows.map((row, index) => {
@@ -358,8 +358,8 @@ function TopUsagePanel({ title, rows, metric }: { title: string; rows: UsageAggr
           return (
             <div key={row.id} className="space-y-2">
               <div className="flex items-center justify-between gap-3 text-sm">
-                <span className="min-w-0 truncate text-zinc-300">{row.label}</span>
-                <span className="shrink-0 font-medium text-zinc-100">{formattedValue(row)}</span>
+                <span className="min-w-0 truncate text-[#b8b3a8]">{row.label}</span>
+                <span className="shrink-0 font-medium text-[#ece9e4]">{formattedValue(row)}</span>
               </div>
               <div className="h-2 overflow-hidden rounded-full bg-[#262629]">
                 <div
@@ -370,14 +370,14 @@ function TopUsagePanel({ title, rows, metric }: { title: string; rows: UsageAggr
                   }}
                 />
               </div>
-              <div className="flex justify-between text-xs text-zinc-500">
+              <div className="flex justify-between text-xs text-[#807a6f]">
                 <span>{row.provider ?? row.modelAlias ?? `${formatNumber(row.errors)} errors`}</span>
                 <span>{Math.round(row.errorRate * 100)}% err</span>
               </div>
             </div>
           );
         })}
-        {!topRows.length ? <div className="text-sm text-zinc-500">No usage yet</div> : null}
+        {!topRows.length ? <div className="text-sm text-[#807a6f]">No usage yet</div> : null}
       </CardContent>
     </Card>
   );
@@ -429,33 +429,33 @@ export default function DashboardPage() {
     ];
   }, [stats]);
 
-  if (error) return <div className="text-sm text-[#ff9aad]">{error}</div>;
-  if (!stats) return <div className="text-sm text-zinc-500">Loading gateway status...</div>;
+  if (error) return <div className="text-sm text-[#e08585]">{error}</div>;
+  if (!stats) return <div className="text-sm text-[#807a6f]">Loading gateway status...</div>;
 
   const statCards = [
     {
       label: "Requests today",
       value: formatNumber(stats.requestsToday),
       detail: `${formatNumber(stats.requestsLast5h)} in 5h`,
-      color: colors[0] ?? "#3ddc97"
+      color: colors[0] ?? "#7aab5e"
     },
     {
       label: "Total tokens",
       value: formatNumber(stats.totalTokens),
       detail: `${formatNumber(stats.totalRequests)} requests`,
-      color: colors[3] ?? "#8b8d98"
+      color: colors[3] ?? "#807a6f"
     },
     {
       label: "Average latency",
       value: `${stats.averageLatencyMs} ms`,
       detail: stats.topStats.slowestProvider ? `${stats.topStats.slowestProvider.label} slowest` : "No latency yet",
-      color: colors[1] ?? "#f4c84a"
+      color: colors[1] ?? "#e0a83e"
     },
     {
       label: "Error rate",
       value: `${Math.round(stats.errorRate * 100)}%`,
       detail: stats.topStats.highestErrorSource ? `${stats.topStats.highestErrorSource.label} has most errors` : "No errors",
-      color: colors[2] ?? "#ff5c7a"
+      color: colors[2] ?? "#d65d5d"
     },
     {
       label: "Estimated cost",
@@ -467,7 +467,7 @@ export default function DashboardPage() {
       label: "Top model",
       value: stats.topStats.mostUsedModel?.label ?? "None",
       detail: `${formatNumber(stats.topStats.mostUsedModel?.requests ?? 0)} requests`,
-      color: colors[4] ?? "#d4d4d8"
+      color: colors[4] ?? "#b8b3a8"
     }
   ];
 
@@ -475,10 +475,10 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-zinc-100">Overview</h1>
-          <p className="mt-1 text-sm text-zinc-500">Live gateway metrics from stored request logs.</p>
+          <h1 className="text-2xl font-semibold text-[#ece9e4]">Overview</h1>
+          <p className="mt-1 text-sm text-[#807a6f]">Live gateway metrics from stored request logs.</p>
         </div>
-        <Badge className="w-fit border-[#3ddc97]/25 bg-[#3ddc97]/10 text-[#82efbf]">
+        <Badge className="w-fit border-[#7aab5e]/25 bg-[#7aab5e]/10 text-[#9bc480]">
           {formatNumber(stats.activeProviders)} providers active
         </Badge>
       </div>
@@ -496,7 +496,7 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      <Card className="bg-[#141414]">
+      <Card className="bg-[#232220]">
         <CardHeader className="flex flex-row items-center justify-between gap-3">
           <CardTitle>Z.ai quota</CardTitle>
           <Badge>Renews every 5h</Badge>
@@ -504,19 +504,19 @@ export default function DashboardPage() {
         <CardContent>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <div className="text-sm font-medium text-zinc-100">
+              <div className="text-sm font-medium text-[#ece9e4]">
                 {providerQuota?.estimatedFiveHourResetAt
                   ? `Next estimated reset: ${formatDate(providerQuota.estimatedFiveHourResetAt)}`
                   : "Quota renews automatically every 5 hours after usage."}
               </div>
-              <div className="mt-1 text-sm text-zinc-500">
+              <div className="mt-1 text-sm text-[#807a6f]">
                 {providerQuota?.lastQuotaEvent
                   ? `Last quota issue: ${formatDate(providerQuota.lastQuotaEvent.createdAt)}`
                   : "If requests stop because quota is empty, this card will show the next estimated reset time."}
               </div>
             </div>
             <a
-              className="w-fit shrink-0 rounded-lg border border-white/[0.06] bg-[#1f1f22] px-3 py-2 text-sm text-zinc-300 transition hover:bg-white/[0.04] hover:text-zinc-100"
+              className="w-fit shrink-0 rounded-lg border border-white/[0.06] bg-[#1f1f22] px-3 py-2 text-sm text-[#b8b3a8] transition hover:bg-white/[0.04] hover:text-[#ece9e4]"
               href="https://z.ai/manage-apikey/subscription"
               target="_blank"
               rel="noreferrer"
@@ -527,7 +527,7 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
-      <Card className="bg-[#141414]">
+      <Card className="bg-[#232220]">
         <CardHeader className="flex flex-row items-center justify-between gap-3">
           <CardTitle>Dashboard Chat API</CardTitle>
           <Badge>{stats.chatUsage.label}</Badge>
@@ -535,42 +535,42 @@ export default function DashboardPage() {
         <CardContent>
           <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
             <div>
-              <div className="text-xs text-zinc-500">Requests</div>
-              <div className="mt-1 text-lg font-semibold text-zinc-100">{formatNumber(stats.chatUsage.requests)}</div>
+              <div className="text-xs text-[#807a6f]">Requests</div>
+              <div className="mt-1 text-lg font-semibold text-[#ece9e4]">{formatNumber(stats.chatUsage.requests)}</div>
             </div>
             <div>
-              <div className="text-xs text-zinc-500">Input tokens</div>
-              <div className="mt-1 text-lg font-semibold text-zinc-100">{formatNumber(stats.chatUsage.inputTokens)}</div>
+              <div className="text-xs text-[#807a6f]">Input tokens</div>
+              <div className="mt-1 text-lg font-semibold text-[#ece9e4]">{formatNumber(stats.chatUsage.inputTokens)}</div>
             </div>
             <div>
-              <div className="text-xs text-zinc-500">Output tokens</div>
-              <div className="mt-1 text-lg font-semibold text-zinc-100">{formatNumber(stats.chatUsage.outputTokens)}</div>
+              <div className="text-xs text-[#807a6f]">Output tokens</div>
+              <div className="mt-1 text-lg font-semibold text-[#ece9e4]">{formatNumber(stats.chatUsage.outputTokens)}</div>
             </div>
             <div>
-              <div className="text-xs text-zinc-500">Avg latency</div>
-              <div className="mt-1 text-lg font-semibold text-zinc-100">{formatNumber(stats.chatUsage.averageLatencyMs)} ms</div>
+              <div className="text-xs text-[#807a6f]">Avg latency</div>
+              <div className="mt-1 text-lg font-semibold text-[#ece9e4]">{formatNumber(stats.chatUsage.averageLatencyMs)} ms</div>
             </div>
             <div>
-              <div className="text-xs text-zinc-500">Cost</div>
-              <div className="mt-1 text-lg font-semibold text-zinc-100">{usd(stats.chatUsage.estimatedCost)}</div>
+              <div className="text-xs text-[#807a6f]">Cost</div>
+              <div className="mt-1 text-lg font-semibold text-[#ece9e4]">{usd(stats.chatUsage.estimatedCost)}</div>
             </div>
           </div>
         </CardContent>
       </Card>
 
       <div className="grid grid-cols-1 gap-4">
-        <Card className="bg-[#141414]">
+        <Card className="bg-[#232220]">
           <CardHeader className="flex flex-col gap-4 border-b-0 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle>Requests over time</CardTitle>
-              <p className="mt-1 text-xs text-zinc-500">Hourly buckets from gateway logs.</p>
+              <p className="mt-1 text-xs text-[#807a6f]">Hourly buckets from gateway logs.</p>
             </div>
-            <div className="flex w-full rounded-lg border border-white/[0.06] bg-[#0f0f10] p-1 sm:w-auto">
+            <div className="flex w-full rounded-lg border border-white/[0.06] bg-[#1f1e1c] p-1 sm:w-auto">
               {chartModes.map((mode) => (
                 <Button
                   key={mode.id}
                   variant="ghost"
-                  className={cn("h-7 flex-1 rounded-md px-2 text-xs sm:flex-none", chartMode === mode.id && "bg-[#252528] text-zinc-100")}
+                  className={cn("h-7 flex-1 rounded-md px-2 text-xs sm:flex-none", chartMode === mode.id && "bg-[#7aab5e]/8 text-[#ece9e4]")}
                   onClick={() => setChartMode(mode.id)}
                 >
                   {mode.label}
@@ -580,7 +580,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-3 pt-0">
             <InlineLegend keys={timeSeries.keys} />
-            <div className="h-[340px] rounded-lg border border-white/[0.07] bg-[#101010] p-3">
+            <div className="h-[340px] rounded-lg border border-white/[0.07] bg-[#1f1e1c] p-3">
               {timeSeries.data.length ? (
                 <ResponsiveContainer>
                   <LineChart data={timeSeries.data as ChartPoint[]} margin={{ top: 12, right: 10, left: -18, bottom: 2 }}>
@@ -609,49 +609,49 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-[#141414]">
+        <Card className="bg-[#232220]">
           <CardHeader>
             <CardTitle>5h quota windows</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {stats.quotaWindows.map((quota) => (
-              <div key={`${quota.provider}:${quota.modelAlias}`} className="space-y-3 rounded-lg border border-white/[0.07] bg-[#101010] p-3">
+              <div key={`${quota.provider}:${quota.modelAlias}`} className="space-y-3 rounded-lg border border-white/[0.07] bg-[#1f1e1c] p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-medium text-zinc-100">{quota.modelAlias}</div>
-                    <div className="text-xs text-zinc-500">{quota.provider} - resets {formatDate(quota.resetsAt)}</div>
+                    <div className="truncate text-sm font-medium text-[#ece9e4]">{quota.modelAlias}</div>
+                    <div className="text-xs text-[#807a6f]">{quota.provider} - resets {formatDate(quota.resetsAt)}</div>
                   </div>
                   <Badge className="shrink-0">{quota.windowHours}h</Badge>
                 </div>
                 <QuotaMeter label="Requests" used={quota.requests} limit={quota.requestLimit} value={quota.requestPercent} />
                 <QuotaMeter label="Tokens" used={quota.totalTokens} limit={quota.tokenLimit} value={quota.tokenPercent} />
-                {quota.concurrencyLimit ? <div className="text-xs text-zinc-500">Concurrency limit: {quota.concurrencyLimit}</div> : null}
+                {quota.concurrencyLimit ? <div className="text-xs text-[#807a6f]">Concurrency limit: {quota.concurrencyLimit}</div> : null}
               </div>
             ))}
-            {!stats.quotaWindows.length ? <div className="text-sm text-zinc-500">No quota windows enabled.</div> : null}
+            {!stats.quotaWindows.length ? <div className="text-sm text-[#807a6f]">No quota windows enabled.</div> : null}
           </CardContent>
         </Card>
 
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <Card className="bg-[#141414] xl:col-span-2">
+        <Card className="bg-[#232220] xl:col-span-2">
           <CardHeader className="flex flex-col gap-4 border-b-0 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle>API key usage by {usageMode === "provider" ? "provider" : "model"}</CardTitle>
-              <p className="mt-1 text-xs text-zinc-500">Stored token usage grouped by key.</p>
+              <p className="mt-1 text-xs text-[#807a6f]">Stored token usage grouped by key.</p>
             </div>
-            <div className="flex w-full rounded-lg border border-white/[0.06] bg-[#0f0f10] p-1 sm:w-auto">
+            <div className="flex w-full rounded-lg border border-white/[0.06] bg-[#1f1e1c] p-1 sm:w-auto">
               <Button
                 variant="ghost"
-                className={cn("h-7 flex-1 rounded-md px-2 text-xs sm:flex-none", usageMode === "provider" && "bg-[#252528] text-zinc-100")}
+                className={cn("h-7 flex-1 rounded-md px-2 text-xs sm:flex-none", usageMode === "provider" && "bg-[#7aab5e]/8 text-[#ece9e4]")}
                 onClick={() => setUsageMode("provider")}
               >
                 Provider
               </Button>
               <Button
                 variant="ghost"
-                className={cn("h-7 flex-1 rounded-md px-2 text-xs sm:flex-none", usageMode === "modelAlias" && "bg-[#252528] text-zinc-100")}
+                className={cn("h-7 flex-1 rounded-md px-2 text-xs sm:flex-none", usageMode === "modelAlias" && "bg-[#7aab5e]/8 text-[#ece9e4]")}
                 onClick={() => setUsageMode("modelAlias")}
               >
                 Model
@@ -660,7 +660,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-3 pt-0">
             <InlineLegend keys={apiKeyChart.keys} />
-            <div className="h-72 rounded-lg border border-white/[0.07] bg-[#101010] p-3">
+            <div className="h-72 rounded-lg border border-white/[0.07] bg-[#1f1e1c] p-3">
               {apiKeyChart.data.length ? (
                 <ResponsiveContainer>
                   <BarChart data={apiKeyChart.data as ChartPoint[]} margin={{ top: 12, right: 10, left: -18, bottom: 2 }}>

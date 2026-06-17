@@ -12,6 +12,7 @@ import { createOpenAiCompatibleAdapter } from "../providers/openai-compatible.js
 import { openAiAdapter } from "../providers/openai.js";
 import { openRouterAdapter } from "../providers/openrouter.js";
 import type { ProviderAdapter } from "../providers/types.js";
+import { invalidateRouteCache } from "../router/resolve-model.js";
 
 const adapters: Record<string, ProviderAdapter> = {
   openai: openAiAdapter,
@@ -73,6 +74,7 @@ export async function adminProviderRoutes(app: FastifyInstance): Promise<void> {
       createdAt: now,
       updatedAt: now
     }).run();
+    invalidateRouteCache();
     return row;
   });
 
@@ -154,6 +156,7 @@ export async function adminProviderRoutes(app: FastifyInstance): Promise<void> {
       })
       .where(eq(providers.id, params.id))
       .run();
+    invalidateRouteCache();
     return db.select().from(providers).where(eq(providers.id, params.id)).get();
   });
 
@@ -179,6 +182,7 @@ export async function adminProviderRoutes(app: FastifyInstance): Promise<void> {
 
     db.delete(quotaSettings).where(eq(quotaSettings.provider, existing.name)).run();
     db.delete(providers).where(eq(providers.id, params.id)).run();
+    invalidateRouteCache();
     return { ok: true };
   });
 }

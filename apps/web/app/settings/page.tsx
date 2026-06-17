@@ -49,10 +49,10 @@ export default function SettingsPage() {
     <PageShell>
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-semibold text-zinc-100">Settings</h1>
-          <p className="mt-1 text-sm text-zinc-500">Runtime config and environment health.</p>
+          <h1 className="text-2xl font-semibold text-[#ece9e4]">Settings</h1>
+          <p className="mt-1 text-sm text-[#807a6f]">Runtime config and environment health.</p>
         </div>
-        {error ? <div className="text-sm text-[#ff9aad]">{error}</div> : null}
+        {error ? <div className="text-sm text-[#e08585]">{error}</div> : null}
         <Card>
           <CardHeader><CardTitle>Environment</CardTitle></CardHeader>
           <CardContent>
@@ -70,7 +70,7 @@ export default function SettingsPage() {
                 </tbody>
               </Table>
             ) : (
-              <div className="text-sm text-zinc-500">Loading environment...</div>
+              <div className="text-sm text-[#807a6f]">Loading environment...</div>
             )}
           </CardContent>
         </Card>
@@ -90,26 +90,26 @@ export default function SettingsPage() {
                   </tbody>
                 </Table>
                 {quota.lastQuotaEvent ? (
-                  <div className="rounded-xl border border-white/[0.06] bg-[#111111] p-4">
-                    <div className="text-sm font-medium text-zinc-100">Last quota event</div>
-                    <div className="mt-2 grid grid-cols-2 gap-3 text-sm text-zinc-400">
+                  <div className="rounded-xl border border-white/[0.06] bg-[#1a1a19] p-4">
+                    <div className="text-sm font-medium text-[#ece9e4]">Last quota event</div>
+                    <div className="mt-2 grid grid-cols-2 gap-3 text-sm text-[#807a6f]">
                       <div>Time: {quota.lastQuotaEvent.createdAt}</div>
                       <div>Model: {quota.lastQuotaEvent.modelAlias}</div>
                       <div>Error: {quota.lastQuotaEvent.errorCode ?? "unknown"}</div>
                       <div>Reset estimate: {quota.lastQuotaEvent.estimatedFiveHourResetAt ?? "unknown"}</div>
                     </div>
-                    <div className="mt-2 text-sm text-zinc-500">{quota.lastQuotaEvent.errorMessage}</div>
+                    <div className="mt-2 text-sm text-[#807a6f]">{quota.lastQuotaEvent.errorMessage}</div>
                   </div>
                 ) : null}
-                <div className="space-y-2 text-sm text-zinc-500">
+                <div className="space-y-2 text-sm text-[#807a6f]">
                   {quota.notes.map((note) => <p key={note}>{note}</p>)}
-                  <a className="text-zinc-300 hover:text-zinc-100" href="https://z.ai/manage-apikey/subscription" target="_blank" rel="noreferrer">
+                  <a className="text-[#b8b3a8] hover:text-[#ece9e4]" href="https://z.ai/manage-apikey/subscription" target="_blank" rel="noreferrer">
                     Open Z.ai usage statistics
                   </a>
                 </div>
               </div>
             ) : (
-              <div className="text-sm text-zinc-500">Loading quota status...</div>
+              <div className="text-sm text-[#807a6f]">Loading quota status...</div>
             )}
           </CardContent>
         </Card>

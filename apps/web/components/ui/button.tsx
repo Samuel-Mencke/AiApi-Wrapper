@@ -1,5 +1,3 @@
-"use client";
-
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
@@ -11,11 +9,11 @@ export function Button({
   return (
     <button
       className={cn(
-        "inline-flex h-9 items-center justify-center gap-2 rounded-lg px-3 text-sm font-medium transition disabled:pointer-events-none disabled:opacity-45",
-        variant === "default" && "bg-[#e7e7ea] text-[#101010] hover:bg-white",
-        variant === "secondary" && "border border-white/[0.075] bg-[#242428] text-zinc-100 hover:bg-[#2d2d32]",
-        variant === "ghost" && "text-zinc-400 hover:bg-white/[0.045] hover:text-zinc-100",
-        variant === "danger" && "bg-[#ff5c7a]/15 text-[#ff9aad] hover:bg-[#ff5c7a]/25",
+        "inline-flex h-9 items-center justify-center gap-2 rounded-lg px-3 text-sm font-medium transition-colors duration-150 disabled:pointer-events-none disabled:opacity-40",
+        variant === "default" && "bg-[#7aab5e] text-[#1a1a19] hover:bg-[#8fc068]",
+        variant === "secondary" && "border border-white/[0.07] bg-white/[0.03] text-[#b8b3a8] hover:bg-white/[0.06]",
+        variant === "ghost" && "text-[#807a6f] hover:bg-white/[0.04] hover:text-[#ece9e4]",
+        variant === "danger" && "bg-[#d65d5d]/12 text-[#e08585] hover:bg-[#d65d5d]/20",
         className
       )}
       {...props}

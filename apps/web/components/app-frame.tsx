@@ -12,10 +12,21 @@ export function AppFrame({ children, flush = false }: { children: ReactNode; flu
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem("ai-gateway-sidebar-collapsed") === "true";
   });
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Lock body scroll when mobile drawer is open
+  useEffect(() => {
+    if (mobileNavOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [mobileNavOpen]);
 
   function toggleCollapsed() {
     setCollapsed((current) => {
@@ -25,10 +36,23 @@ export function AppFrame({ children, flush = false }: { children: ReactNode; flu
   }
 
   return (
-    <div className="min-h-screen bg-[#111111] text-zinc-100">
-      <AppSidebar collapsed={collapsed} onToggleCollapsed={toggleCollapsed} />
-      <div className={cn(mounted && "transition-[padding] duration-300 ease-out", "md:pl-56 xl:pl-64", collapsed && "md:pl-20 xl:pl-20")}>
-        <Topbar />
+    <div className="min-h-screen bg-[#1a1a19] text-[#ece9e4]">
+      {/* Mobile overlay */}
+      {mobileNavOpen && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/50 md:hidden"
+          onClick={() => setMobileNavOpen(false)}
+        />
+      )}
+
+      <AppSidebar
+        collapsed={collapsed}
+        onToggleCollapsed={toggleCollapsed}
+        mobileNavOpen={mobileNavOpen}
+        onMobileNavClose={() => setMobileNavOpen(false)}
+      />
+      <div className={cn(mounted && "transition-[padding] duration-200 ease-out", "md:pl-56", collapsed && "md:pl-[60px]")}>
+        <Topbar onMenuClick={() => setMobileNavOpen(true)} />
         <main className={cn(flush ? "p-0" : "p-4 md:p-6")}>{children}</main>
       </div>
     </div>

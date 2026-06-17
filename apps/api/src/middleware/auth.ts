@@ -1,9 +1,9 @@
 import crypto from "node:crypto";
 import type { FastifyReply, FastifyRequest } from "fastify";
-import { and, eq, gte } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { GatewayError } from "@ai-gateway/core/errors";
-import { db } from "../db/client.js";
-import { apiKeys, requests } from "../db/schema.js";
+import { db, sqlite } from "../db/client.js";
+import { apiKeys } from "../db/schema.js";
 import { env } from "../env.js";
 
 export interface AuthContext {
@@ -115,6 +115,52 @@ export function hasValidAdminSession(request: FastifyRequest): boolean {
   }
 }
 
+// ── API Key Cache (avoids DB hash lookup on every request) ──
+interface CachedKey {
+  id: string;
+  enabled: boolean;
+  monthlyLimit: number | null;
+  expiresAt: number;
+}
+const apiKeyCache = new Map<string, CachedKey>();
+const API_KEY_CACHE_TTL = 30_000; // 30s
+
+// ── Batched lastUsedAt updates (fire-and-forget) ──
+const lastUsedQueue = new Map<string, string>(); // keyId → timestamp
+let lastUsedTimer: NodeJS.Timeout | null = null;
+
+function flushLastUsed(): void {
+  lastUsedTimer = null;
+  if (lastUsedQueue.size === 0) return;
+  const entries = Array.from(lastUsedQueue.entries());
+  lastUsedQueue.clear();
+  // Batch all updates in a single transaction
+  try {
+    db.transaction(() => {
+      for (const [keyId, ts] of entries) {
+        db.update(apiKeys).set({ lastUsedAt: ts }).where(eq(apiKeys.id, keyId)).run();
+      }
+    });
+  } catch {
+    // Swallow — lastUsedAt is best-effort
+  }
+}
+
+function scheduleLastUsedFlush(): void {
+  if (lastUsedTimer) return;
+  lastUsedTimer = setTimeout(flushLastUsed, 5_000);
+}
+
+// Pre-computed monthly limit check via SQL COUNT (not .all().length)
+const monthStartCache = { value: "", ts: 0 };
+function getMonthStart(): string {
+  const now = Date.now();
+  if (now - monthStartCache.ts < 60_000) return monthStartCache.value;
+  monthStartCache.value = startOfCurrentMonth();
+  monthStartCache.ts = now;
+  return monthStartCache.value;
+}
+
 export async function requireApiAuth(request: FastifyRequest): Promise<void> {
   const token = bearerToken(request);
   if (!token) {
@@ -129,21 +175,40 @@ export async function requireApiAuth(request: FastifyRequest): Promise<void> {
     return;
   }
 
-  const key = db.select().from(apiKeys).where(eq(apiKeys.keyHash, hashApiKey(token))).get();
-  if (!key || !key.enabled) {
+  const keyHash = hashApiKey(token);
+
+  // Check cache first
+  let cached = apiKeyCache.get(keyHash);
+  if (!cached || Date.now() > cached.expiresAt) {
+    const key = db.select().from(apiKeys).where(eq(apiKeys.keyHash, keyHash)).get();
+    if (!key || !key.enabled) {
+      throw new GatewayError("Invalid or disabled API key", {
+        code: "invalid_api_key",
+        statusCode: 401
+      });
+    }
+    cached = {
+      id: key.id,
+      enabled: key.enabled,
+      monthlyLimit: key.monthlyLimit,
+      expiresAt: Date.now() + API_KEY_CACHE_TTL
+    };
+    apiKeyCache.set(keyHash, cached);
+  } else if (!cached.enabled) {
     throw new GatewayError("Invalid or disabled API key", {
       code: "invalid_api_key",
       statusCode: 401
     });
   }
 
-  if (key.monthlyLimit !== null && key.monthlyLimit !== undefined) {
-    const usedThisMonth = db.select()
-      .from(requests)
-      .where(and(eq(requests.apiKeyId, key.id), gte(requests.createdAt, startOfCurrentMonth())))
-      .all().length;
+  if (cached.monthlyLimit !== null && cached.monthlyLimit !== undefined) {
+    const monthStart = getMonthStart();
+    // Use SQL COUNT instead of loading all rows
+    const row = sqlite.prepare(
+      "SELECT COUNT(*) as cnt FROM requests WHERE api_key_id = ? AND created_at >= ?"
+    ).get(cached.id, monthStart) as { cnt: number };
 
-    if (usedThisMonth >= key.monthlyLimit) {
+    if (row.cnt >= cached.monthlyLimit) {
       throw new GatewayError("Monthly API key request limit exceeded", {
         code: "rate_limit_exceeded",
         statusCode: 429,
@@ -152,8 +217,16 @@ export async function requireApiAuth(request: FastifyRequest): Promise<void> {
     }
   }
 
-  db.update(apiKeys).set({ lastUsedAt: new Date().toISOString() }).where(eq(apiKeys.id, key.id)).run();
-  request.auth = { apiKeyId: key.id, isAdmin: false };
+  // Async lastUsedAt — fire and forget
+  lastUsedQueue.set(cached.id, new Date().toISOString());
+  scheduleLastUsedFlush();
+
+  request.auth = { apiKeyId: cached.id, isAdmin: false };
+}
+
+/** Invalidate API key cache (call after key changes) */
+export function invalidateApiKeyCache(): void {
+  apiKeyCache.clear();
 }
 
 export async function requireAdminAuth(request: FastifyRequest): Promise<void> {

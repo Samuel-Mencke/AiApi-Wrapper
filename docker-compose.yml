@@ -24,6 +24,7 @@ services:
       - .env
     environment:
       NEXT_PUBLIC_API_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:18789}
+      NODE_OPTIONS: ""
     depends_on:
       - api
     ports:

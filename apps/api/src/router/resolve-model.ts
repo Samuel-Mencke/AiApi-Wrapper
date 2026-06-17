@@ -9,36 +9,71 @@ export interface ResolvedModelRoute {
   attempts: ModelRouteTarget[];
 }
 
+// ── In-memory caches to avoid hitting SQLite on every request ──
+let modelRouteCache: Map<string, ResolvedModelRoute> | null = null;
+let providerConfigCache: Map<string, ProviderConfig> | null = null;
+
+/**
+ * Invalidate caches (call after config changes).
+ */
+export function invalidateRouteCache(): void {
+  modelRouteCache = null;
+  providerConfigCache = null;
+}
+
+function loadModelRouteCache(): Map<string, ResolvedModelRoute> {
+  if (modelRouteCache) return modelRouteCache;
+  const cache = new Map<string, ResolvedModelRoute>();
+  for (const row of db.select().from(modelRoutes).all()) {
+    if (!row.enabled) continue;
+    const fallback = JSON.parse(row.fallbackJson || "[]") as ModelRouteTarget[];
+    cache.set(row.alias, {
+      alias: row.alias,
+      attempts: [{ provider: row.provider, model: row.realModel }, ...fallback]
+    });
+  }
+  modelRouteCache = cache;
+  return cache;
+}
+
+function loadProviderConfigCache(): Map<string, ProviderConfig> {
+  if (providerConfigCache) return providerConfigCache;
+  const cache = new Map<string, ProviderConfig>();
+  for (const row of db.select().from(providers).all()) {
+    if (!row.enabled) continue;
+    cache.set(row.name, {
+      name: row.name,
+      type: row.type as ProviderConfig["type"],
+      baseUrl: row.baseUrl ?? undefined,
+      enabled: row.enabled
+    });
+  }
+  providerConfigCache = cache;
+  return cache;
+}
+
 export function resolveModel(alias: string): ResolvedModelRoute {
-  const row = db.select().from(modelRoutes).where(eq(modelRoutes.alias, alias)).get();
-  if (!row || !row.enabled) {
+  const cache = loadModelRouteCache();
+  const route = cache.get(alias);
+  if (!route) {
     throw new GatewayError(`Model alias '${alias}' is not configured`, {
       code: "model_not_found",
       statusCode: 404
     });
   }
-
-  const fallback = JSON.parse(row.fallbackJson || "[]") as ModelRouteTarget[];
-  return {
-    alias,
-    attempts: [{ provider: row.provider, model: row.realModel }, ...fallback]
-  };
+  return route;
 }
 
 export function getProviderConfig(providerName: string): ProviderConfig {
-  const row = db.select().from(providers).where(eq(providers.name, providerName)).get();
-  if (!row || !row.enabled) {
+  const cache = loadProviderConfigCache();
+  const config = cache.get(providerName);
+  if (!config) {
     throw new GatewayError(`Provider '${providerName}' is not configured or enabled`, {
       code: "provider_not_found",
       statusCode: 404
     });
   }
-  return {
-    name: row.name,
-    type: row.type as ProviderConfig["type"],
-    baseUrl: row.baseUrl ?? undefined,
-    enabled: row.enabled
-  };
+  return config;
 }
 
 export function listModelAliases(): ModelRouteConfig[] {

@@ -1,31 +1,45 @@
 import type { ModelRouteTarget } from "@ai-gateway/core";
 import { GatewayError } from "@ai-gateway/core/errors";
-import { db } from "../db/client.js";
-import { quotaSettings, requests } from "../db/schema.js";
+import { sqlite } from "../db/client.js";
 
 const PROVIDER_QUOTA_ALIAS = "__provider__";
 
-function retryAfterSeconds(windowHours: number, matchingRequests: Array<typeof requests.$inferSelect>): number {
-  const oldest = matchingRequests
-    .map((request) => new Date(request.createdAt).getTime())
-    .filter((value) => Number.isFinite(value))
-    .sort((a, b) => a - b)[0];
+// ── In-memory quota cache ──
+interface CachedQuotaSettings {
+  provider: string;
+  modelAlias: string;
+  enabled: boolean;
+  windowHours: number;
+  requestLimit: number | null;
+  tokenLimit: number | null;
+  concurrencyLimit: number | null;
+}
+let quotaCache: CachedQuotaSettings[] | null = null;
 
-  if (!oldest) {
-    return Math.max(1, Math.ceil(windowHours * 60 * 60));
-  }
+export function invalidateQuotaCache(): void {
+  quotaCache = null;
+}
 
-  const resetAt = oldest + windowHours * 60 * 60 * 1000;
-  return Math.max(1, Math.ceil((resetAt - Date.now()) / 1000));
+function loadQuotaCache(): CachedQuotaSettings[] {
+  if (quotaCache) return quotaCache;
+  quotaCache = sqlite.prepare(
+    `SELECT provider, model_alias, enabled, window_hours, request_limit, token_limit, concurrency_limit FROM quota_settings`
+  ).all() as CachedQuotaSettings[];
+  return quotaCache;
+}
+
+function retryAfterSeconds(windowHours: number): number {
+  // Conservative estimate — just return the window
+  return Math.max(1, Math.ceil(windowHours * 60 * 60));
 }
 
 export function enforceRouteQuota(modelAlias: string, target: ModelRouteTarget): void {
-  const allSettings = db.select().from(quotaSettings).all();
+  const allSettings = loadQuotaCache();
   const providerSetting = allSettings.find(
-    (setting) => setting.enabled && setting.provider === target.provider && setting.modelAlias === PROVIDER_QUOTA_ALIAS
+    (s) => s.enabled && s.provider === target.provider && s.modelAlias === PROVIDER_QUOTA_ALIAS
   );
   const modelSetting = allSettings.find(
-    (setting) => setting.enabled && setting.provider === target.provider && setting.modelAlias === modelAlias
+    (s) => s.enabled && s.provider === target.provider && s.modelAlias === modelAlias
   );
   const setting = providerSetting ?? modelSetting;
 
@@ -34,29 +48,61 @@ export function enforceRouteQuota(modelAlias: string, target: ModelRouteTarget):
   }
 
   const windowStart = new Date(Date.now() - setting.windowHours * 60 * 60 * 1000).toISOString();
-  const matchingRequests = db.select().from(requests).all().filter((request) =>
-    request.createdAt >= windowStart &&
-    request.provider === target.provider &&
-    (setting.modelAlias === PROVIDER_QUOTA_ALIAS || request.modelAlias === modelAlias)
-  );
-  const usedTokens = matchingRequests.reduce(
-    (total, request) => total + (request.inputTokens ?? 0) + (request.outputTokens ?? 0),
-    0
-  );
 
-  if (setting.requestLimit !== null && matchingRequests.length >= setting.requestLimit) {
-    throw new GatewayError("Configured gateway request quota exceeded", {
-      code: "rate_limit_exceeded",
-      statusCode: 429,
-      retryAfter: retryAfterSeconds(setting.windowHours, matchingRequests)
-    });
-  }
+  // Use SQL COUNT + SUM instead of loading all rows into JS
+  if (setting.modelAlias === PROVIDER_QUOTA_ALIAS) {
+    // Provider-level quota — match only on provider
+    if (setting.requestLimit !== null) {
+      const row = sqlite.prepare(
+        "SELECT COUNT(*) as cnt FROM requests WHERE provider = ? AND created_at >= ?"
+      ).get(target.provider, windowStart) as { cnt: number };
+      if (row.cnt >= setting.requestLimit) {
+        throw new GatewayError("Configured gateway request quota exceeded", {
+          code: "rate_limit_exceeded",
+          statusCode: 429,
+          retryAfter: retryAfterSeconds(setting.windowHours)
+        });
+      }
+    }
 
-  if (setting.tokenLimit !== null && usedTokens >= setting.tokenLimit) {
-    throw new GatewayError("Configured gateway token quota exceeded", {
-      code: "rate_limit_exceeded",
-      statusCode: 429,
-      retryAfter: retryAfterSeconds(setting.windowHours, matchingRequests)
-    });
+    if (setting.tokenLimit !== null) {
+      const row = sqlite.prepare(
+        "SELECT COALESCE(SUM(COALESCE(input_tokens,0) + COALESCE(output_tokens,0)),0) as total FROM requests WHERE provider = ? AND created_at >= ?"
+      ).get(target.provider, windowStart) as { total: number };
+      if (row.total >= setting.tokenLimit) {
+        throw new GatewayError("Configured gateway token quota exceeded", {
+          code: "rate_limit_exceeded",
+          statusCode: 429,
+          retryAfter: retryAfterSeconds(setting.windowHours)
+        });
+      }
+    }
+  } else {
+    // Model-level quota — match on provider + model_alias
+    if (setting.requestLimit !== null) {
+      const row = sqlite.prepare(
+        "SELECT COUNT(*) as cnt FROM requests WHERE provider = ? AND model_alias = ? AND created_at >= ?"
+      ).get(target.provider, modelAlias, windowStart) as { cnt: number };
+      if (row.cnt >= setting.requestLimit) {
+        throw new GatewayError("Configured gateway request quota exceeded", {
+          code: "rate_limit_exceeded",
+          statusCode: 429,
+          retryAfter: retryAfterSeconds(setting.windowHours)
+        });
+      }
+    }
+
+    if (setting.tokenLimit !== null) {
+      const row = sqlite.prepare(
+        "SELECT COALESCE(SUM(COALESCE(input_tokens,0) + COALESCE(output_tokens,0)),0) as total FROM requests WHERE provider = ? AND model_alias = ? AND created_at >= ?"
+      ).get(target.provider, modelAlias, windowStart) as { total: number };
+      if (row.total >= setting.tokenLimit) {
+        throw new GatewayError("Configured gateway token quota exceeded", {
+          code: "rate_limit_exceeded",
+          statusCode: 429,
+          retryAfter: retryAfterSeconds(setting.windowHours)
+        });
+      }
+    }
   }
 }

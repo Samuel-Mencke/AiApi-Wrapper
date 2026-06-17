@@ -11,6 +11,11 @@ fs.mkdirSync(path.dirname(databaseFile), { recursive: true });
 export const sqlite = new Database(databaseFile);
 sqlite.pragma("journal_mode = WAL");
 sqlite.pragma("foreign_keys = ON");
+// Performance pragmas — safe for WAL mode, dramatic speedup for concurrent reads
+sqlite.pragma("synchronous = NORMAL");
+sqlite.pragma("busy_timeout = 5000");
+sqlite.pragma("cache_size = -64000"); // 64MB page cache
+sqlite.pragma("mmap_size = 268435456"); // 256MB memory-mapped I/O
 
 export const db = drizzle(sqlite, { schema });
 
@@ -159,4 +164,8 @@ export function migrate(): void {
   `);
   ensureColumn("requests", "request_id", "request_id TEXT");
   sqlite.exec("CREATE INDEX IF NOT EXISTS idx_requests_request_id ON requests(request_id)");
+  sqlite.exec("CREATE INDEX IF NOT EXISTS idx_requests_created ON requests(created_at)");
+  sqlite.exec("CREATE INDEX IF NOT EXISTS idx_requests_api_key_created ON requests(api_key_id, created_at)");
+  sqlite.exec("CREATE INDEX IF NOT EXISTS idx_requests_model_alias ON requests(model_alias)");
+  sqlite.exec("CREATE INDEX IF NOT EXISTS idx_quota_settings_provider ON quota_settings(provider)");
 }

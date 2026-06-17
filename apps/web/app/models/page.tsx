@@ -58,17 +58,17 @@ export default function ModelsPage() {
     <PageShell>
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-semibold text-zinc-100">Models</h1>
-          <p className="mt-1 text-sm text-zinc-500">Friendly aliases mapped to provider models and fallback routes.</p>
+          <h1 className="text-2xl font-semibold text-[#ece9e4]">Models</h1>
+          <p className="mt-1 text-sm text-[#807a6f]">Friendly aliases mapped to provider models and fallback routes.</p>
         </div>
-        {error ? <div className="text-sm text-[#ff9aad]">{error}</div> : null}
+        {error ? <div className="text-sm text-[#e08585]">{error}</div> : null}
         <Card>
           <CardHeader><CardTitle>Add model alias</CardTitle></CardHeader>
           <CardContent>
             <form className="grid grid-cols-1 gap-3 xl:grid-cols-[1fr_1fr_1fr_auto]" onSubmit={form.handleSubmit(create)}>
               <Input placeholder="Alias" {...form.register("alias")} />
               <select
-                className="h-9 rounded-lg border border-white/[0.07] bg-[#101010] px-3 text-sm text-zinc-100 outline-none transition focus:border-white/[0.18]"
+                className="h-9 rounded-lg border border-white/[0.07] bg-[#1f1e1c] px-3 text-sm text-[#ece9e4] outline-none transition focus:border-white/[0.18]"
                 {...form.register("provider")}
               >
                 <option value="">Provider</option>

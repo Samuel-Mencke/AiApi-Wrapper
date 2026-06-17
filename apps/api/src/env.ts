@@ -37,7 +37,7 @@ const schema = z.object({
   SEARXNG_URL: z.string().url().default("https://search.samuelm.de"),
   WEB_SEARCH_TIMEOUT_MS: z.coerce.number().int().positive().default(10_000),
   WEB_SEARCH_MAX_RESULTS: z.coerce.number().int().positive().max(10).default(5),
-  CHAT_AGENT_MAX_STEPS: z.coerce.number().int().positive().max(12).default(6),
+  CHAT_AGENT_MAX_STEPS: z.coerce.number().int().positive().max(20).default(15),
   CHAT_CONTEXT_MAX_MESSAGES: z.coerce.number().int().positive().max(200).default(40)
 });
 

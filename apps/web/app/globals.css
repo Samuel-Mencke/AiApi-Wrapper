@@ -2,25 +2,53 @@
 
 :root {
   color-scheme: dark;
-  --bg: #111111;
-  --bg-elevated: #151515;
-  --bg-panel: #18181b;
-  --bg-panel-strong: #242428;
-  --bg-muted: #2a2a2e;
-  --border-subtle: rgba(255, 255, 255, 0.055);
-  --border-strong: rgba(255, 255, 255, 0.095);
-  --text: #f4f4f5;
-  --text-muted: #8b8d98;
-  --text-dim: #5f616b;
-  --accent: #e7e7ea;
+
+  /* ── Claude-like warm neutral palette ── */
+  --bg-base: #1a1a19;        /* warm charcoal, not pure black */
+  --bg-surface: #232220;     /* cards, input bg */
+  --bg-elevated: #2a2825;    /* hover, dropdowns */
+  --bg-input: #1f1e1c;       /* textareas */
+  --bg-hover: rgba(255, 255, 255, 0.05);
+
+  /* ── Borders (subtle, warm) ── */
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-default: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.12);
+
+  /* ── Text (warm whites) ── */
+  --text-primary: #ece9e4;   /* warm white */
+  --text-secondary: #b8b3a8; /* warm gray */
+  --text-muted: #807a6f;     /* warm muted */
+
+  /* ── Accent (Claude warm orange → we use our green but warmer) ── */
+  --accent: #7aab5e;         /* muted sage green */
+  --accent-hover: #8fc068;
+  --accent-muted: rgba(122, 171, 94, 0.12);
+  --accent-subtle: rgba(122, 171, 94, 0.06);
+  --accent-text: #9bc480;
+
+  /* ── Status ── */
+  --danger: #d65d5d;
+  --danger-muted: rgba(214, 93, 93, 0.12);
+  --warning: #e0a83e;
+  --warning-muted: rgba(224, 168, 62, 0.12);
+  --info: #6ba4d0;
+  --info-muted: rgba(107, 164, 208, 0.12);
+
+  /* ── Shadows (minimal, soft) ── */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.25);
+  --shadow-lg: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
 body {
   margin: 0;
-  background: var(--bg);
-  color: var(--text);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-inter), Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   text-rendering: geometricPrecision;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 * {
@@ -34,13 +62,23 @@ textarea {
   font: inherit;
 }
 
+/* ── Selection ── */
 ::selection {
-  background: rgba(244, 244, 245, 0.18);
+  background: var(--accent-muted);
+  color: var(--accent-text);
 }
 
+/* ── Focus outline ── */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── Scrollbar (thin, subtle) ── */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -48,14 +86,45 @@ textarea {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.16);
-  border: 3px solid transparent;
+  background: rgba(255, 255, 255, 0.08);
   border-radius: 999px;
-  background-clip: content-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.24);
-  border: 3px solid transparent;
-  background-clip: content-box;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+/* ── Animations (subtle) ── */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ── Glass effect (very subtle) ── */
+.glass {
+  background: rgba(26, 26, 25, 0.8);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* ── Chat markdown prose ── */
+.chat-markdown {
+  --tw-prose-body: var(--text-primary);
+  --tw-prose-headings: var(--text-primary);
+  --tw-prose-links: var(--accent-text);
+  --tw-prose-bold: var(--text-primary);
+  --tw-prose-code: var(--text-primary);
 }

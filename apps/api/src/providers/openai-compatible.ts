@@ -3,6 +3,23 @@ import type { InternalChatRequest, ModelRouteTarget, ProviderConfig, ProviderRes
 import { getProviderApiKey } from "../config/providers.js";
 import type { ProviderAdapter } from "./types.js";
 
+// ── Global HTTP connection pool with Keep-Alive ──
+// undici is bundled with Node 18+ and powers the global fetch().
+// We configure keep-alive to avoid TCP+TLS handshake on every provider request.
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+import undici from "undici";
+undici.setGlobalDispatcher(
+  new undici.Agent({
+    connect: { timeout: 10_000 },
+    keepAliveTimeout: 30_000,
+    keepAliveMaxTimeout: 120_000,
+    headersTimeout: 300_000,
+    bodyTimeout: 300_000,
+    pipelining: 0,
+    connections: 100,
+  })
+);
+
 const DEFAULT_BASE_URLS: Record<string, string> = {
   openai: "https://api.openai.com/v1",
   openrouter: "https://openrouter.ai/api/v1",
