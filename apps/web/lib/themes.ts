@@ -169,7 +169,7 @@ const COLOR_TO_CSS: Record<keyof ThemeColors, string> = {
 };
 
 export function applyTheme(themeId: string): void {
-  const preset = THEME_PRESETS.find((t) => t.id === themeId) ?? THEME_PRESETS[0];
+  const preset = THEME_PRESETS.find((t) => t.id === themeId) ?? THEME_PRESETS[0]!;
   const root = document.documentElement;
   for (const [key, cssVar] of Object.entries(COLOR_TO_CSS)) {
     const value = preset.colors[key as keyof ThemeColors];
