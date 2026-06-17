@@ -185,6 +185,94 @@ export function applyTheme(themeId: string): void {
   // Meta theme-color
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.setAttribute("content", preset.colors.bgBase);
+
+  // Inject CSS override rules that map hardcoded Tailwind arbitrary-value
+  // classes (bg-[#1a1a19], text-[#ece9e4], etc.) to the CSS variables we
+  // just set. Without this, changing :root variables has no visual effect
+  // because Tailwind compiled the hex values directly into the classes.
+  injectTailwindOverrides();
+}
+
+const COLOR_TO_VAR_ENTRIES: Array<[string, string]> = [
+  ["#1a1a19", "--bg-base"],
+  ["#0f0f10", "--bg-base"],
+  ["#111111", "--bg-base"],
+  ["#121212", "--bg-base"],
+  ["#232220", "--bg-surface"],
+  ["#262629", "--bg-surface"],
+  ["#1f1e1c", "--bg-input"],
+  ["#1f1f22", "--bg-input"],
+  ["#2a2825", "--bg-elevated"],
+  ["#ece9e4", "--text-primary"],
+  ["#b8b3a8", "--text-secondary"],
+  ["#9ca3af", "--text-secondary"],
+  ["#807a6f", "--text-muted"],
+  ["#5a554d", "--text-muted"],
+  ["#7aab5e", "--accent"],
+  ["#f58d49", "--accent"],
+  ["#d66dff", "--accent"],
+  ["#8fc068", "--accent-hover"],
+  ["#9bc480", "--accent-text"],
+  ["#d65d5d", "--danger"],
+  ["#e08585", "--danger"],
+  ["#e8a0a0", "--danger"],
+  ["#e0a83e", "--warning"],
+  ["#6ba4d0", "--info"],
+  ["#71e3e8", "--info"]
+];
+
+let overrideStyleEl: HTMLStyleElement | null = null;
+
+function injectTailwindOverrides(): void {
+  if (overrideStyleEl) return; // Already injected
+  const lines: string[] = [];
+  for (const [hex, cssVar] of COLOR_TO_VAR_ENTRIES) {
+    const e = hex.replace("#", "\\#"); // CSS-escape the #
+    lines.push(
+      `.bg-\\[${e}\\]{background-color:var(${cssVar})!important}`,
+      `.text-\\[${e}\\]{color:var(${cssVar})!important}`,
+      `.border-\\[${e}\\]{border-color:var(${cssVar})!important}`,
+      `.fill-\\[${e}\\]{fill:var(${cssVar})!important}`,
+      `.stroke-\\[${e}\\]{stroke:var(${cssVar})!important}`,
+      `.from-\\[${e}\\]{--tw-gradient-from:var(${cssVar})!important}`,
+      `.to-\\[${e}\\]{--tw-gradient-to:var(${cssVar})!important}`
+    );
+  }
+  // rgba white-alpha border/bg patterns → map to variable equivalents
+  const whiteAlphaMap: Record<string, string> = {
+    "0.018": "--border-subtle",
+    "0.02": "--border-subtle",
+    "0.025": "--bg-hover",
+    "0.03": "--border-subtle",
+    "0.035": "--border-default",
+    "0.04": "--bg-hover",
+    "0.05": "--bg-hover",
+    "0.055": "--border-default",
+    "0.06": "--border-default",
+    "0.065": "--border-default",
+    "0.07": "--border-default",
+    "0.075": "--border-strong",
+    "0.08": "--border-default",
+    "0.12": "--border-strong",
+    "0.14": "--border-strong",
+    "0.16": "--border-strong",
+    "0.18": "--border-strong",
+    "0.22": "--border-strong"
+  };
+  for (const [alpha, cssVar] of Object.entries(whiteAlphaMap)) {
+    const e = `white\\/\\[${alpha.replace(".", "\\.")}\\]`;
+    lines.push(
+      `.bg-\\[${e}\\]{background-color:var(${cssVar})!important}`,
+      `.border-\\[${e}\\]{border-color:var(${cssVar})!important}`,
+      `.divide-\\[${e}\\]>*{border-color:var(${cssVar})!important}`,
+      `.ring-\\[${e}\\]{--tw-ring-color:var(${cssVar})!important}`
+    );
+  }
+  const el = document.createElement("style");
+  el.id = "theme-tailwind-overrides";
+  el.textContent = lines.join("\n");
+  document.head.appendChild(el);
+  overrideStyleEl = el;
 }
 
 export function isValidThemeId(id: string): boolean {
