@@ -24,7 +24,9 @@ const putBodySchema = z.object({
 function isValidThemeId(raw: string): boolean {
   // New format: "base:accent"
   if (raw.includes(":")) {
-    const [base, accent] = raw.split(":");
+    const parts = raw.split(":");
+    const base = parts[0] ?? "";
+    const accent = parts[1] ?? "";
     return VALID_BASE_IDS.includes(base) && VALID_ACCENT_IDS.includes(accent);
   }
   // Legacy format
