@@ -12,6 +12,7 @@ import { responseRoutes } from "./routes/responses.js";
 import { adminAuthRoutes } from "./routes/admin-auth.js";
 import { adminApiKeyRoutes } from "./routes/admin-api-keys.js";
 import { adminLogRoutes } from "./routes/admin-logs.js";
+import { adminPreferencesRoutes } from "./routes/admin-preferences.js";
 import { adminModelRoutes } from "./routes/admin-models.js";
 import { adminProviderRoutes } from "./routes/admin-providers.js";
 import { adminStatsRoutes } from "./routes/admin-stats.js";
@@ -56,6 +57,7 @@ await app.register(adminProviderRoutes);
 await app.register(adminModelRoutes);
 await app.register(adminApiKeyRoutes);
 await app.register(adminLogRoutes);
+await app.register(adminPreferencesRoutes);
 
 try {
   await app.listen({ host: env.HOST, port: env.PORT });

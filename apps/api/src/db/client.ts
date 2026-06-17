@@ -156,6 +156,11 @@ export function migrate(): void {
       item_json TEXT NOT NULL,
       created_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS user_preferences (
+      id TEXT PRIMARY KEY,
+      theme_id TEXT NOT NULL DEFAULT 'claude-warm',
+      updated_at TEXT NOT NULL
+    );
     CREATE INDEX IF NOT EXISTS idx_chat_messages_thread_created ON chat_messages(thread_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_chat_runs_thread_started ON chat_runs(thread_id, started_at);
     CREATE INDEX IF NOT EXISTS idx_chat_steps_run_started ON chat_steps(run_id, started_at);

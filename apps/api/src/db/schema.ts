@@ -137,3 +137,9 @@ export const responseInputItems = sqliteTable("response_input_items", {
   itemJson: text("item_json").notNull(),
   createdAt: text("created_at").notNull()
 });
+
+export const userPreferences = sqliteTable("user_preferences", {
+  id: text("id").primaryKey(),
+  themeId: text("theme_id").notNull().default("claude-warm"),
+  updatedAt: text("updated_at").notNull()
+});
