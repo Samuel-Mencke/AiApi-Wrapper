@@ -27,6 +27,9 @@ models:
   glm5.1:
     provider: z-ai
     model: glm-5.1
+  glm5.2:
+    provider: z-ai
+    model: glm-5.2
   glm5-turbo:
     provider: z-ai
     model: glm-5-turbo
