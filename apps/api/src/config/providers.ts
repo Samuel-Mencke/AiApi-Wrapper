@@ -9,7 +9,12 @@ import { env } from "../env.js";
 
 interface ProvidersFile {
   providers?: Record<string, Omit<ProviderConfig, "name">>;
-  models?: Record<string, ModelRouteTarget & { fallback?: ModelRouteTarget[]; enabled?: boolean }>;
+  models?: Record<string, ModelRouteTarget & {
+    fallback?: ModelRouteTarget[];
+    enabled?: boolean;
+    context_length?: number;
+    max_output_tokens?: number;
+  }>;
 }
 
 const legacyModelAliases: Record<string, string> = {
@@ -42,7 +47,9 @@ export function getConfiguredModels(): ModelRouteConfig[] {
     model: route.model,
     baseUrl: route.baseUrl,
     enabled: route.enabled ?? true,
-    fallback: route.fallback ?? []
+    fallback: route.fallback ?? [],
+    contextLength: route.context_length ?? null,
+    maxOutputTokens: route.max_output_tokens ?? null
   }));
 }
 

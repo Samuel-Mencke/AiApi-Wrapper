@@ -26,7 +26,9 @@ export const modelRoutes = sqliteTable("model_routes", {
   realModel: text("real_model").notNull(),
   fallbackJson: text("fallback_json").notNull().default("[]"),
   enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
-  createdAt: text("created_at").notNull()
+  createdAt: text("created_at").notNull(),
+  contextLength: integer("context_length"),
+  maxOutputTokens: integer("max_output_tokens")
 });
 
 export const requests = sqliteTable("requests", {

@@ -111,11 +111,7 @@ function lighten(hex: string, ratio: number): string {
   return rgbToHex(r + (255 - r) * ratio, g + (255 - g) * ratio, b + (255 - b) * ratio);
 }
 
-/** Darken a hex color by blending toward black */
-function darken(hex: string, ratio: number): string {
-  const { r, g, b } = hexToRgb(hex);
-  return rgbToHex(r * (1 - ratio), g * (1 - ratio), b * (1 - ratio));
-}
+
 
 /** Convert hex to rgba with alpha */
 export function hexToRgba(hex: string, alpha: number): string {

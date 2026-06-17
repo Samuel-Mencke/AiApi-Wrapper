@@ -168,6 +168,9 @@ export function migrate(): void {
     CREATE INDEX IF NOT EXISTS idx_response_input_items_response ON response_input_items(response_id, item_index);
   `);
   ensureColumn("requests", "request_id", "request_id TEXT");
+  // Context-limit columns on model_routes (auto-resolved if absent)
+  ensureColumn("model_routes", "context_length", "context_length INTEGER");
+  ensureColumn("model_routes", "max_output_tokens", "max_output_tokens INTEGER");
   sqlite.exec("CREATE INDEX IF NOT EXISTS idx_requests_request_id ON requests(request_id)");
   sqlite.exec("CREATE INDEX IF NOT EXISTS idx_requests_created ON requests(created_at)");
   sqlite.exec("CREATE INDEX IF NOT EXISTS idx_requests_api_key_created ON requests(api_key_id, created_at)");

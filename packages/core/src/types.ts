@@ -44,6 +44,10 @@ export interface ModelRouteConfig extends ModelRouteTarget {
   enabled: boolean;
   fallback: ModelRouteTarget[];
   createdAt?: string;
+  /** Optional context-window override (in tokens). 0/null = auto-resolve. */
+  contextLength?: number | null;
+  /** Optional max output tokens override. */
+  maxOutputTokens?: number | null;
 }
 
 export interface ProviderConfig {
