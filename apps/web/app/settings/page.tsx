@@ -115,7 +115,7 @@ export default function SettingsPage() {
             </div>
             <div className="mt-4 flex items-center gap-3">
               <Button
-                disabled={saving || themeId === saved}
+                disabled={saving}
                 onClick={() => saveTheme(themeId)}
                 className="h-9 rounded-lg px-4 text-sm"
               >
