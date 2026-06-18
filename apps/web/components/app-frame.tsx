@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AppSidebar } from "@/components/app-sidebar";
 import { Topbar } from "@/components/topbar";
 import { cn } from "@/lib/utils";
@@ -13,6 +13,7 @@ export function AppFrame({ children, flush = false }: { children: ReactNode; flu
     return window.localStorage.getItem("ai-gateway-sidebar-collapsed") === "true";
   });
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const menuOpenTimeRef = useRef(0);
 
   useEffect(() => {
     setMounted(true);
@@ -35,24 +36,28 @@ export function AppFrame({ children, flush = false }: { children: ReactNode; flu
     });
   }
 
+  const handleOpenMenu = useCallback(() => {
+    menuOpenTimeRef.current = Date.now();
+    setMobileNavOpen(true);
+  }, []);
+
+  const handleCloseMenu = useCallback(() => {
+    // Ignore clicks that arrive within 150ms of opening (touch propagation guard)
+    if (Date.now() - menuOpenTimeRef.current > 150) {
+      setMobileNavOpen(false);
+    }
+  }, []);
+
   return (
     <div className="min-h-screen bg-[#1a1a19] text-[#ece9e4]">
-      {/* Mobile overlay */}
-      {mobileNavOpen && (
-        <div
-          className="fixed inset-0 z-[60] bg-black/50 md:hidden"
-          onClick={() => setMobileNavOpen(false)}
-        />
-      )}
-
       <AppSidebar
         collapsed={collapsed}
         onToggleCollapsed={toggleCollapsed}
         mobileNavOpen={mobileNavOpen}
-        onMobileNavClose={() => setMobileNavOpen(false)}
+        onMobileNavClose={handleCloseMenu}
       />
       <div className={cn(mounted && "transition-[padding] duration-200 ease-out", "md:pl-56", collapsed && "md:pl-[60px]")}>
-        <Topbar onMenuClick={() => setMobileNavOpen(true)} />
+        <Topbar onMenuClick={handleOpenMenu} />
         <main className={cn(flush ? "p-0" : "p-4 md:p-6")}>{children}</main>
       </div>
     </div>
