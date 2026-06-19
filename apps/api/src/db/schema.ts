@@ -81,7 +81,11 @@ export const chatMessages = sqliteTable("chat_messages", {
   provider: text("provider"),
   realModel: text("real_model"),
   metadataJson: text("metadata_json").notNull().default("{}"),
-  createdAt: text("created_at").notNull()
+  createdAt: text("created_at").notNull(),
+  // Branching: null = root message, otherwise points to parent message
+  parentMessageId: text("parent_message_id"),
+  // Attachments: JSON array of {id, filename, mimeType, size, url} for file/image uploads
+  attachmentsJson: text("attachments_json").notNull().default("[]")
 });
 
 export const chatRuns = sqliteTable("chat_runs", {

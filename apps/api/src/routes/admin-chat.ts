@@ -2,10 +2,13 @@ import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { nanoid } from "nanoid";
 import { z } from "zod";
-import { db } from "../db/client.js";
-import { chatThreads } from "../db/schema.js";
+import fs from "node:fs";
+import path from "node:path";
+import { db, sqlite } from "../db/client.js";
+import { chatMessages, chatThreads } from "../db/schema.js";
+import { env } from "../env.js";
 import { requireAdminAuth } from "../middleware/auth.js";
-import { createChatRunStream, getThreadPayload } from "../chat/orchestrator.js";
+import { createChatRunStream, getThreadPayload, getActivePath } from "../chat/orchestrator.js";
 import { listChatModels, testChatModel } from "../chat/model-status.js";
 import { listChatTools } from "../chat/tools.js";
 
@@ -13,7 +16,15 @@ const runBody = z.object({
   threadId: z.string().optional(),
   content: z.string().min(1),
   modelAlias: z.string().min(1),
-  webSearch: z.boolean().optional()
+  webSearch: z.boolean().optional(),
+  parentMessageId: z.string().optional(),
+  attachments: z.array(z.object({
+    id: z.string(),
+    filename: z.string(),
+    mimeType: z.string(),
+    size: z.number(),
+    url: z.string()
+  })).optional()
 });
 
 export async function adminChatRoutes(app: FastifyInstance): Promise<void> {
@@ -109,5 +120,73 @@ export async function adminChatRoutes(app: FastifyInstance): Promise<void> {
         // ignore
       }
     }
+  });
+
+  // Delete a single message (and optionally its children)
+  app.delete("/admin/chat/messages/:id", { preHandler: requireAdminAuth }, async (request, reply) => {
+    const params = z.object({ id: z.string() }).parse(request.params);
+    const body = z.object({ cascade: z.boolean().optional() }).optional().parse(request.body);
+    // Collect message + descendants if cascade
+    const toDelete: string[] = [params.id];
+    if (body?.cascade) {
+      let frontier = [params.id];
+      while (frontier.length) {
+        const children = sqlite.prepare("SELECT id FROM chat_messages WHERE parent_message_id IN (" + frontier.map(() => "?").join(",") + ")")
+          .all(...frontier) as Array<{ id: string }>;
+        const childIds = children.map((c) => c.id).filter((id) => !toDelete.includes(id));
+        toDelete.push(...childIds);
+        frontier = childIds;
+      }
+    }
+    for (const id of toDelete) {
+      sqlite.prepare("DELETE FROM chat_messages WHERE id = ?").run(id);
+    }
+    return { data: { deleted: toDelete.length, ids: toDelete } };
+  });
+
+  // Get active path (the currently visible message chain)
+  app.get("/admin/chat/threads/:id/path", { preHandler: requireAdminAuth }, async (request) => {
+    const params = z.object({ id: z.string() }).parse(request.params);
+    return { data: { path: getActivePath(params.id) } };
+  });
+
+  // Upload endpoint for file/image attachments
+  app.post("/admin/chat/upload", { preHandler: requireAdminAuth }, async (request, reply) => {
+    const data = await request.file();
+    if (!data) return reply.code(400).send({ error: { message: "No file uploaded" } });
+    const allowedMime = [
+      "image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml",
+      "application/pdf", "text/plain", "text/markdown", "text/csv",
+      "application/json", "application/javascript", "text/typescript",
+      "application/zip", "application/x-tar", "application/gzip",
+      "text/x-python", "text/x-shellscript", "application/octet-stream"
+    ];
+    const maxBytes = 15 * 1024 * 1024; // 15 MB
+    const mime = data.mimetype;
+    if (!allowedMime.includes(mime) && !mime.startsWith("image/") && !mime.startsWith("text/")) {
+      return reply.code(415).send({ error: { message: `File type ${mime} not allowed` } });
+    }
+    const uploadDir = path.resolve(env.root, "data", "uploads");
+    fs.mkdirSync(uploadDir, { recursive: true });
+    const id = nanoid();
+    const ext = path.extname(data.filename || "");
+    const storedName = `${id}${ext}`;
+    const filePath = path.resolve(uploadDir, storedName);
+    const buffer = await data.toBuffer();
+    if (buffer.byteLength > maxBytes) {
+      return reply.code(413).send({ error: { message: "File exceeds 15MB limit" } });
+    }
+    fs.writeFileSync(filePath, buffer);
+    const url = `/uploads/${storedName}`;
+    const stat = fs.statSync(filePath);
+    return {
+      data: {
+        id,
+        filename: data.filename || storedName,
+        mimeType: mime,
+        size: stat.size,
+        url
+      }
+    };
   });
 }

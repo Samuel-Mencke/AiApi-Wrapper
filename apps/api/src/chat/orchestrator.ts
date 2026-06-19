@@ -77,7 +77,8 @@ function serializeMessage(row: typeof chatMessages.$inferSelect) {
   return {
     ...row,
     contentBlocks: parseJson(row.contentBlocksJson, { blocks: [] }),
-    metadata: parseJson(row.metadataJson, {})
+    metadata: parseJson(row.metadataJson, {}),
+    attachments: parseJson(row.attachmentsJson, [])
   };
 }
 
@@ -123,9 +124,27 @@ function normalizeBlocks(blocks: RichBlocks): RichBlocks {
   };
 }
 
-function buildContext(threadId: string): { messages: InternalMessage[]; compacted: boolean } {
-  const rows = db.select().from(chatMessages).where(eq(chatMessages.threadId, threadId)).all();
-  const ordered = rows.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+function buildContext(threadId: string, fromMessageId?: string): { messages: InternalMessage[]; compacted: boolean } {
+  // When fromMessageId is given (edit/branch case), walk the parent-chain from there to root.
+  // Otherwise fall back to linear chronological order (root thread).
+  let ordered: typeof chatMessages.$inferSelect[];
+  if (fromMessageId) {
+    const chain: typeof chatMessages.$inferSelect[] = [];
+    let cursor: string | null = fromMessageId;
+    const guard = new Set<string>();
+    while (cursor && !guard.has(cursor)) {
+      guard.add(cursor);
+      const row = db.select().from(chatMessages).where(eq(chatMessages.id, cursor)).get();
+      if (!row) break;
+      chain.unshift(row);
+      cursor = row.parentMessageId;
+    }
+    ordered = chain;
+  } else {
+    ordered = db.select().from(chatMessages).where(eq(chatMessages.threadId, threadId)).all()
+      .filter((m) => !m.parentMessageId) // root-level only (no branching) — backwards compatible
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }
   const compacted = ordered.length > env.CHAT_CONTEXT_MAX_MESSAGES;
   const kept = ordered.slice(-env.CHAT_CONTEXT_MAX_MESSAGES);
   const messages: InternalMessage[] = [
@@ -316,9 +335,26 @@ function shouldUseZaiThinking(route: ReturnType<typeof resolveModel>) {
 export function getThreadPayload(threadId: string) {
   const thread = db.select().from(chatThreads).where(eq(chatThreads.id, threadId)).get();
   if (!thread || thread.archivedAt) return null;
-  const messages = db.select().from(chatMessages).where(eq(chatMessages.threadId, threadId)).all()
+  const allMessages = db.select().from(chatMessages).where(eq(chatMessages.threadId, threadId)).all()
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
     .map(serializeMessage);
+  // Group messages by parent to compute sibling info for branch navigation
+  const byParent = new Map<string | null, typeof allMessages>();
+  for (const msg of allMessages) {
+    const key = msg.parentMessageId ?? null;
+    const arr = byParent.get(key) ?? [];
+    arr.push(msg);
+    byParent.set(key, arr);
+  }
+  // Compute siblingCount + siblingIndex for each message
+  const messagesWithSiblings = allMessages.map((msg) => {
+    const siblings = byParent.get(msg.parentMessageId ?? null) ?? [];
+    return {
+      ...msg,
+      siblingCount: siblings.length,
+      siblingIndex: siblings.findIndex((s) => s.id === msg.id)
+    };
+  });
   const runs = db.select().from(chatRuns).where(eq(chatRuns.threadId, threadId)).all()
     .sort((a, b) => a.startedAt.localeCompare(b.startedAt))
     .map(serializeRun);
@@ -326,10 +362,38 @@ export function getThreadPayload(threadId: string) {
     .filter((step) => runs.some((run) => run.id === step.runId))
     .sort((a, b) => a.startedAt.localeCompare(b.startedAt))
     .map(serializeStep);
-  return { thread, messages, runs, steps };
+  return { thread, messages: messagesWithSiblings, runs, steps };
 }
 
-export function createChatRunStream(input: { threadId?: string; content: string; modelAlias: string; webSearch?: boolean }) {
+export function getActivePath(threadId: string): string[] {
+  // Returns the currently visible message path (leaf -> root).
+  // Picks the latest message and walks up its parent chain.
+  const all = db.select().from(chatMessages).where(eq(chatMessages.threadId, threadId)).all()
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  if (!all.length) return [];
+  // Start from the latest message
+  const leaf = all[all.length - 1]!;
+  const path: string[] = [];
+  let cursor: string | null = leaf.id;
+  const guard = new Set<string>();
+  while (cursor && !guard.has(cursor)) {
+    guard.add(cursor);
+    const row = all.find((m) => m.id === cursor);
+    if (!row) break;
+    path.unshift(cursor);
+    cursor = row.parentMessageId;
+  }
+  return path;
+}
+
+export function createChatRunStream(input: {
+  threadId?: string;
+  content: string;
+  modelAlias: string;
+  webSearch?: boolean;
+  parentMessageId?: string;
+  attachments?: Array<{ id: string; filename: string; mimeType: string; size: number; url: string }>;
+}) {
   return new ReadableStream<Uint8Array>({
     async start(controller) {
       let runId = "";
@@ -361,7 +425,9 @@ export function createChatRunStream(input: { threadId?: string; content: string;
           provider: null,
           realModel: null,
           metadataJson: "{}",
-          createdAt
+          createdAt,
+          parentMessageId: input.parentMessageId ?? null,
+          attachmentsJson: JSON.stringify(input.attachments ?? [])
         };
         db.insert(chatMessages).values(userMessage).run();
         db.update(chatThreads).set({ updatedAt: createdAt }).where(eq(chatThreads.id, threadId)).run();
@@ -389,7 +455,7 @@ export function createChatRunStream(input: { threadId?: string; content: string;
         db.insert(chatRuns).values(run).run();
         emitSse(controller, { type: "run", run });
 
-        const context = buildContext(threadId);
+        const context = buildContext(threadId, userMessage.id);
         if (context.compacted) {
           const compact = createStep(runId, "compact", "Context compacted", { maxMessages: env.CHAT_CONTEXT_MAX_MESSAGES }, "completed");
           emitSse(controller, { type: "step", step: serializeStep(compact) });
@@ -503,7 +569,7 @@ export function createChatRunStream(input: { threadId?: string; content: string;
             emitSse(controller, { type: "rich_block", block });
           }
         }
-        const finalMessage = {
+        const finalMessage: typeof chatMessages.$inferSelect = {
           id: nanoid(),
           threadId,
           role: "assistant",
@@ -521,7 +587,9 @@ export function createChatRunStream(input: { threadId?: string; content: string;
             outputTokens: usage.outputTokens ?? null,
             totalTokens: usage.totalTokens ?? null
           }),
-          createdAt: now()
+          createdAt: now(),
+          parentMessageId: userMessage.id,
+          attachmentsJson: "[]"
         };
         db.insert(chatMessages).values(finalMessage).run();
         const completedAt = now();

@@ -171,6 +171,10 @@ export function migrate(): void {
   // Context-limit columns on model_routes (auto-resolved if absent)
   ensureColumn("model_routes", "context_length", "context_length INTEGER");
   ensureColumn("model_routes", "max_output_tokens", "max_output_tokens INTEGER");
+  // Branching + attachments on chat_messages
+  ensureColumn("chat_messages", "parent_message_id", "parent_message_id TEXT");
+  ensureColumn("chat_messages", "attachments_json", "attachments_json TEXT NOT NULL DEFAULT '[]'");
+  sqlite.exec("CREATE INDEX IF NOT EXISTS idx_chat_messages_parent ON chat_messages(parent_message_id)");
   sqlite.exec("CREATE INDEX IF NOT EXISTS idx_requests_request_id ON requests(request_id)");
   sqlite.exec("CREATE INDEX IF NOT EXISTS idx_requests_created ON requests(created_at)");
   sqlite.exec("CREATE INDEX IF NOT EXISTS idx_requests_api_key_created ON requests(api_key_id, created_at)");

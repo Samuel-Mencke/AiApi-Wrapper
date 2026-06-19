@@ -23,7 +23,28 @@ import {
   XAxis,
   YAxis
 } from "recharts";
-import { Archive, BrainCircuit, Check, ChevronDown, Copy, Menu, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Plus, RotateCcw, Search, Send, Sparkles, Square, X } from "lucide-react";
+import { Archive, ArrowLeft, ArrowRight, BrainCircuit, Check, ChevronDown, Copy, Download, Loader2, Menu, Mic, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Paperclip, Pencil, Plus, RotateCcw, Search, Send, Sparkles, Square, Trash2, X } from "lucide-react";
+
+// Minimal typings for the Web Speech API (not in TS DOM lib by default).
+interface SpeechRecognitionAlternative { readonly transcript: string; }
+interface SpeechRecognitionResult { readonly 0: SpeechRecognitionAlternative; readonly length: number; readonly isFinal: boolean; }
+interface SpeechRecognitionResultList { readonly length: number; item(index: number): SpeechRecognitionResult; readonly [index: number]: SpeechRecognitionResult; }
+interface SpeechRecognitionEvent extends Event { readonly resultIndex: number; readonly results: SpeechRecognitionResultList; }
+interface SpeechRecognitionErrorEvent extends Event { readonly error: string; readonly message: string; }
+interface SpeechRecognition extends EventTarget {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  maxAlternatives: number;
+  start(): void;
+  stop(): void;
+  abort(): void;
+  onresult: ((event: SpeechRecognitionEvent) => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEvent) => void) | null;
+  onend: (() => void) | null;
+  onstart: (() => void) | null;
+}
+interface SpeechRecognitionConstructor { new (): SpeechRecognition; }
 import { API_BASE_URL, apiFetch } from "@/lib/api";
 import { cn, formatDate, formatNumber } from "@/lib/utils";
 import { PageShell } from "@/components/page-shell";
@@ -76,6 +97,14 @@ type RichBlock =
   | { type: "error"; message: string; rawJson?: unknown }
   | { type: string; [key: string]: unknown };
 
+interface Attachment {
+  id: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+  url: string;
+}
+
 interface ChatMessage {
   id: string;
   threadId: string;
@@ -87,6 +116,10 @@ interface ChatMessage {
   realModel: string | null;
   metadata?: Record<string, unknown>;
   createdAt: string;
+  parentMessageId?: string | null;
+  siblingCount?: number;
+  siblingIndex?: number;
+  attachments?: Attachment[];
 }
 
 interface ChatRun {
@@ -503,23 +536,195 @@ function ActivityDisclosure({ run, steps }: { run?: ChatRun; steps: ChatStep[] }
   );
 }
 
-function MessageView({ message, run, steps, onRegenerate }: { message: ChatMessage; run?: ChatRun; steps: ChatStep[]; onRegenerate: () => void }) {
+function AttachmentThumb({ attachment }: { attachment: Attachment }) {
+  if (isImageMime(attachment.mimeType)) {
+    return (
+      <a
+        href={attachmentUrl(attachment.url)}
+        target="_blank"
+        rel="noreferrer"
+        className="block overflow-hidden rounded-lg border border-white/[0.08] bg-[#1f1e1c]"
+        title={attachment.filename}
+      >
+        <img
+          src={attachmentUrl(attachment.url)}
+          alt={attachment.filename}
+          className="h-28 w-28 object-cover"
+        />
+      </a>
+    );
+  }
+  return (
+    <a
+      href={attachmentUrl(attachment.url)}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex items-center gap-2 rounded-lg border border-white/[0.08] bg-[#1f1e1c] px-2.5 py-1.5 text-xs text-[#b8b3a8] transition hover:bg-white/[0.04]"
+      title={attachment.filename}
+    >
+      <Paperclip className="h-3.5 w-3.5 shrink-0 text-[#807a6f]" />
+      <span className="max-w-[12rem] truncate">{attachment.filename}</span>
+      <span className="text-[#5a554d]">{formatBytes(attachment.size)}</span>
+    </a>
+  );
+}
+
+function SiblingNav({ message, onNavigate }: { message: ChatMessage; onNavigate: () => void }) {
+  const count = message.siblingCount ?? 1;
+  const index = message.siblingIndex ?? 0;
+  if (count <= 1) return null;
+  return (
+    <span className="inline-flex h-7 items-center gap-0.5 rounded-md border border-white/[0.07] bg-white/[0.025] px-1 text-xs text-[#807a6f]">
+      <button
+        type="button"
+        className="inline-flex h-5 w-5 items-center justify-center rounded text-[#807a6f] transition hover:bg-white/[0.06] hover:text-[#ece9e4] disabled:opacity-30"
+        disabled={index <= 0}
+        onClick={onNavigate}
+        title="Previous sibling"
+      >
+        <ArrowLeft className="h-3 w-3" />
+      </button>
+      <span className="min-w-[2rem] text-center tabular-nums">{index + 1}/{count}</span>
+      <button
+        type="button"
+        className="inline-flex h-5 w-5 items-center justify-center rounded text-[#807a6f] transition hover:bg-white/[0.06] hover:text-[#ece9e4] disabled:opacity-30"
+        disabled={index >= count - 1}
+        onClick={onNavigate}
+        title="Next sibling"
+      >
+        <ArrowRight className="h-3 w-3" />
+      </button>
+    </span>
+  );
+}
+
+interface MessageViewProps {
+  message: ChatMessage;
+  run?: ChatRun;
+  steps: ChatStep[];
+  models: ChatModel[];
+  canEdit: boolean;
+  onRegenerate: () => void;
+  onRegenerateWithModel: (alias: string) => void;
+  onEditSave: (text: string) => void;
+  onDelete: () => void;
+  onNavigateSibling: () => void;
+}
+
+function MessageView({
+  message,
+  run,
+  steps,
+  models,
+  canEdit,
+  onRegenerate,
+  onRegenerateWithModel,
+  onEditSave,
+  onDelete,
+  onNavigateSibling
+}: MessageViewProps) {
   const blocks = message.contentBlocks?.blocks?.length ? message.contentBlocks.blocks : [{ type: "markdown", content: message.contentText } as RichBlock];
   const metadata = message.metadata ?? {};
   const reasoningText = typeof metadata.reasoningText === "string" ? metadata.reasoningText : "";
 
+  const [isEditing, setIsEditing] = useState(false);
+  const [draft, setDraft] = useState(message.contentText);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [modelMenuOpen, setModelMenuOpen] = useState(false);
+
+  const attachments = message.attachments ?? [];
+
   if (message.role === "user") {
     return (
-      <div className="flex justify-end py-3">
-        <div className="max-w-[min(680px,85%)] rounded-2xl rounded-br-md bg-[#2a2825] px-4 py-3 text-[15px] leading-7 text-[#ece9e4]">
-          <div className="whitespace-pre-wrap break-words">{message.contentText}</div>
+      <div className="group flex justify-end gap-2 py-3">
+        <div className="flex max-w-[min(680px,85%)] flex-col items-end gap-1.5">
+          {attachments.length > 0 ? (
+            <div className="flex flex-wrap justify-end gap-2">
+              {attachments.map((attachment) => <AttachmentThumb key={attachment.id} attachment={attachment} />)}
+            </div>
+          ) : null}
+          {isEditing ? (
+            <div className="w-full min-w-[18rem] rounded-2xl rounded-br-md border border-white/[0.12] bg-[#2a2825] p-2">
+              <textarea
+                className="max-h-60 min-h-[3rem] w-full resize-none bg-transparent px-2 py-1.5 text-[15px] leading-7 text-[#ece9e4] outline-none"
+                value={draft}
+                autoFocus
+                onChange={(event) => setDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    if (draft.trim()) {
+                      onEditSave(draft);
+                      setIsEditing(false);
+                    }
+                  }
+                  if (event.key === "Escape") {
+                    setDraft(message.contentText);
+                    setIsEditing(false);
+                  }
+                }}
+              />
+              <div className="flex items-center justify-end gap-2 px-1 pb-1 pt-1">
+                <button
+                  className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-[#807a6f] transition hover:bg-white/[0.06] hover:text-[#ece9e4]"
+                  onClick={() => { setDraft(message.contentText); setIsEditing(false); }}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="inline-flex h-7 items-center gap-1 rounded-md bg-[#7aab5e] px-3 text-xs font-medium text-[#1a1a19] transition hover:bg-[#8bbf6c] disabled:opacity-50"
+                  disabled={!draft.trim()}
+                  onClick={() => { onEditSave(draft); setIsEditing(false); }}
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-2xl rounded-br-md bg-[#2a2825] px-4 py-3 text-[15px] leading-7 text-[#ece9e4]">
+              <div className="whitespace-pre-wrap break-words">{message.contentText}</div>
+            </div>
+          )}
+          {!isEditing ? (
+            <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1 text-xs text-[#807a6f]">
+              <SiblingNav message={message} onNavigate={onNavigateSibling} />
+              <button className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-[#807a6f] transition hover:bg-white/[0.04] hover:text-[#ece9e4]" onClick={() => navigator.clipboard.writeText(message.contentText)}>
+                <Copy className="h-3.5 w-3.5" /> Copy
+              </button>
+              {canEdit ? (
+                <button
+                  className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-[#807a6f] transition hover:bg-white/[0.04] hover:text-[#ece9e4]"
+                  onClick={() => { setDraft(message.contentText); setIsEditing(true); }}
+                  title="Edit and branch"
+                >
+                  <Pencil className="h-3.5 w-3.5" /> Edit
+                </button>
+              ) : null}
+              {confirmDelete ? (
+                <span className="inline-flex h-7 items-center gap-1 rounded-md border border-[#d65d5d]/30 bg-[#d65d5d]/10 px-1.5 text-xs text-[#e8a0a0]">
+                  Delete?
+                  <button className="rounded px-1.5 font-medium text-[#d65d5d] hover:bg-[#d65d5d]/20" onClick={onDelete}>Yes</button>
+                  <button className="rounded px-1.5 text-[#807a6f] hover:bg-white/[0.06]" onClick={() => setConfirmDelete(false)}>No</button>
+                </span>
+              ) : (
+                <button
+                  className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-[#807a6f] transition hover:bg-[#d65d5d]/10 hover:text-[#e8a0a0]"
+                  onClick={() => setConfirmDelete(true)}
+                  title="Delete message"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          ) : null}
         </div>
       </div>
     );
   }
 
+  // assistant
   return (
-    <div className="flex gap-3 py-3">
+    <div className="group flex gap-3 py-3">
       <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#7aab5e]">
         <span className="text-[10px] font-bold text-[#1a1a19]">AI</span>
       </div>
@@ -529,10 +734,53 @@ function MessageView({ message, run, steps, onRegenerate }: { message: ChatMessa
           {blocks.map((block, index) => <RichBlockView key={index} block={block} />)}
         </div>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pt-1 text-xs text-[#807a6f]">
+          <SiblingNav message={message} onNavigate={onNavigateSibling} />
           <CopyButton value={message.contentText} />
+          <div className="relative">
+            <button
+              className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-[#807a6f] transition hover:bg-white/[0.04] hover:text-[#ece9e4]"
+              onClick={() => setModelMenuOpen(!modelMenuOpen)}
+              title="Regenerate with a different model"
+            >
+              <RotateCcw className="h-3.5 w-3.5" /> Regenerate with...
+            </button>
+            {modelMenuOpen ? (
+              <>
+                <button className="fixed inset-0 z-30 cursor-default" aria-label="Close model menu" onClick={() => setModelMenuOpen(false)} />
+                <div className="absolute left-0 z-40 mt-1 max-h-72 w-56 overflow-y-auto rounded-lg border border-white/[0.08] bg-[#232220] p-1 shadow-2xl shadow-black/50">
+                  {models.map((model) => (
+                    <button
+                      key={model.alias}
+                      className="flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-left text-xs text-[#b8b3a8] transition hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-40"
+                      disabled={model.status === "failed"}
+                      onClick={() => { onRegenerateWithModel(model.alias); setModelMenuOpen(false); }}
+                    >
+                      <span className="truncate">{model.alias}</span>
+                      {model.alias === message.modelAlias ? <Check className="h-3 w-3 shrink-0 text-[#7aab5e]" /> : null}
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : null}
+          </div>
           <button className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-[#807a6f] transition hover:bg-white/[0.04] hover:text-[#ece9e4]" onClick={onRegenerate}>
             <RotateCcw className="h-3.5 w-3.5" /> Regenerate
           </button>
+          {confirmDelete ? (
+            <span className="inline-flex h-7 items-center gap-1 rounded-md border border-[#d65d5d]/30 bg-[#d65d5d]/10 px-1.5 text-xs text-[#e8a0a0]">
+              Delete?
+              <button className="rounded px-1.5 font-medium text-[#d65d5d] hover:bg-[#d65d5d]/20" onClick={onDelete}>Yes</button>
+              <button className="rounded px-1.5 text-[#807a6f] hover:bg-white/[0.06]" onClick={() => setConfirmDelete(false)}>No</button>
+            </span>
+          ) : (
+            <button
+              className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-[#807a6f] transition hover:bg-[#d65d5d]/10 hover:text-[#e8a0a0]"
+              onClick={() => setConfirmDelete(true)}
+              title="Delete message"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
           {message.modelAlias ? <><span>·</span><span>{message.modelAlias}</span></> : null}
           {typeof metadata.totalTokens === "number" ? <><span>·</span><span>{formatNumber(metadata.totalTokens)} tokens</span></> : null}
         </div>
@@ -545,6 +793,98 @@ function MessageView({ message, run, steps, onRegenerate }: { message: ChatMessa
 function defaultModel(models: ChatModel[]) {
   const available = models.filter((model) => model.status !== "failed");
   return available.find((model) => model.alias === "glm5.2")?.alias ?? available[0]?.alias ?? models[0]?.alias ?? "";
+}
+
+function formatBytes(bytes: number) {
+  if (!bytes) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  const value = bytes / Math.pow(1024, i);
+  return `${value.toFixed(value >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
+}
+
+function isImageMime(mime: string) {
+  return mime.startsWith("image/");
+}
+
+// Deterministic pseudo-random based on a numeric seed (mulberry32).
+function mulberry32(seed: number) {
+  let state = seed >>> 0;
+  return () => {
+    state |= 0;
+    state = (state + 0x6d2b79f5) | 0;
+    let t = Math.imul(state ^ (state >>> 15), 1 | state);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+interface SuggestionPool {
+  category: string;
+  items: Array<{ title: string; prompt: string }>;
+}
+
+const SUGGESTION_POOLS: SuggestionPool[] = [
+  {
+    category: "Code",
+    items: [
+      { title: "Python binary search", prompt: "Write a Python function that implements binary search with type hints" },
+      { title: "React useDebounce hook", prompt: "Write a useDebounce hook in TypeScript for React" },
+      { title: "SQL schema for users", prompt: "Design a normalized SQL schema for a users + roles system" }
+    ]
+  },
+  {
+    category: "Explain",
+    items: [
+      { title: "How transformers work", prompt: "Explain how transformers work in machine learning, with a simple analogy" },
+      { title: "Explain raft consensus", prompt: "Explain the Raft consensus algorithm like I am new to distributed systems" },
+      { title: "What is an index?", prompt: "Explain what a database index is and when to use one, with examples" }
+    ]
+  },
+  {
+    category: "Analyze",
+    items: [
+      { title: "API gateway metrics", prompt: "What are the key metrics I should track for an API gateway?" },
+      { title: "Compare ORMs", prompt: "Compare Prisma, Drizzle, and Kysely for a TypeScript backend" },
+      { title: "Review caching strategies", prompt: "Summarize the main caching strategies and their trade-offs" }
+    ]
+  },
+  {
+    category: "Creative",
+    items: [
+      { title: "Release note draft", prompt: "Write a release note for a new AI gateway dashboard feature" },
+      { title: "Product tagline ideas", prompt: "Brainstorm 5 taglines for a developer-focused observability tool" },
+      { title: "Onboarding email", prompt: "Draft a friendly onboarding email for new users of an AI platform" }
+    ]
+  }
+];
+
+function buildSuggestions(seed: number) {
+  const rand = mulberry32(seed);
+  return SUGGESTION_POOLS.map((pool) => {
+    const items = [...pool.items];
+    // pick 2 unique items per pool
+    const picked: Array<{ title: string; prompt: string }> = [];
+    while (items.length && picked.length < 2) {
+      const idx = Math.floor(rand() * items.length);
+      const [item] = items.splice(idx, 1);
+      if (item) picked.push(item);
+    }
+    return picked.map((item) => ({ ...item, category: pool.category }));
+  }).flat().slice(0, 4);
+}
+
+function greetingForHour(hour: number) {
+  if (hour < 5) return "Late night";
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  if (hour < 22) return "Good evening";
+  return "Late night";
+}
+
+function attachmentUrl(url: string) {
+  if (/^https?:\/\//i.test(url)) return url;
+  return `${API_BASE_URL}${url.startsWith("/") ? "" : "/"}${url}`;
 }
 
 function ModelPicker({ models, value, onChange }: { models: ChatModel[]; value: string; onChange: (value: string) => void }) {
@@ -648,11 +988,24 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
   const [renamingThreadId, setRenamingThreadId] = useState<string | null>(null);
   const [renameTitle, setRenameTitle] = useState("");
   const [error, setError] = useState("");
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [uploadingCount, setUploadingCount] = useState(0);
+  const [dragActive, setDragActive] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [suggestionSeed, setSuggestionSeed] = useState(() => Date.now() & 0xffffffff);
   const abortRef = useRef<AbortController | null>(null);
   const activeThreadIdRef = useRef<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const scrollRef = useAutoScroll([messages, streamingText, streamingReasoning, steps]);
 
   const webSearchAvailable = tools.some((tool) => tool.name === "web_search" && tool.enabled);
+  const voiceSupported = typeof window !== "undefined" && Boolean(
+    (window as unknown as Record<string, unknown>).SpeechRecognition ||
+    (window as unknown as Record<string, unknown>).webkitSpeechRecognition
+  );
 
   useEffect(() => {
     activeThreadIdRef.current = activeThreadId;
@@ -752,9 +1105,12 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
     setStreamingText("");
     setStreamingReasoning("");
     setContent("");
+    setAttachments([]);
     setError("");
     setOpenThreadMenu(null);
     setRenamingThreadId(null);
+    setSuggestionSeed(Date.now() & 0xffffffff);
+    if (isListening) recognitionRef.current?.stop();
     if (!sessionOpen) setSessionOpen(true);
   }
 
@@ -791,9 +1147,44 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
     if (!webSearchAvailable) setWebSearch(false);
   }, [webSearchAvailable]);
 
-  async function sendMessage(regenerate = false, explicitText?: string) {
+  // Global keyboard shortcuts.
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      const mod = event.metaKey || event.ctrlKey;
+      if (mod && event.key === "k") {
+        event.preventDefault();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+        return;
+      }
+      if (mod && event.key === "/") {
+        event.preventDefault();
+        resetChat();
+        return;
+      }
+      // ArrowUp in empty textarea loads last user message text.
+      if (event.key === "ArrowUp" && target?.tagName === "TEXTAREA") {
+        const ta = target as HTMLTextAreaElement;
+        if (ta.value === "") {
+          const lastUser = [...messages].reverse().find((m) => m.role === "user");
+          if (lastUser) {
+            event.preventDefault();
+            setContent(lastUser.contentText);
+          }
+        }
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [messages]);
+
+  async function sendMessage(regenerate = false, explicitText?: string, options?: { parentMessageId?: string | null; attachments?: Attachment[]; overrideModelAlias?: string }) {
+    const effectiveModelAlias = options?.overrideModelAlias ?? modelAlias;
+    const effectiveAttachments = options?.attachments ?? attachments;
     const text = explicitText?.trim() || (regenerate ? messages.filter((message) => message.role === "user").at(-1)?.contentText ?? "" : content.trim());
     const requestThreadId = activeThreadId;
+    const requestParentMessageId = options?.parentMessageId ?? undefined;
     let streamThreadId = requestThreadId;
 
     function belongsToVisibleThread(threadId?: string | null) {
@@ -812,12 +1203,13 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
       setError("Write a message first.");
       return;
     }
-    if (!modelAlias || !models.some((model) => model.alias === modelAlias && model.status !== "failed")) {
+    if (!effectiveModelAlias || !models.some((model) => model.alias === effectiveModelAlias && model.status !== "failed")) {
       setError("No working model is available for chat.");
       return;
     }
     setError("");
     setContent("");
+    setAttachments([]);
     setIsRunning(true);
     setRunningThreadId(requestThreadId);
     setStreamingText("");
@@ -833,7 +1225,9 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
       provider: null,
       realModel: null,
       metadata: {},
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      parentMessageId: requestParentMessageId ?? null,
+      attachments: effectiveAttachments
     };
     setMessages((current) => [...current, optimisticMessage]);
     const controller = new AbortController();
@@ -844,7 +1238,14 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ threadId: requestThreadId ?? undefined, content: text, modelAlias, webSearch }),
+        body: JSON.stringify({
+          threadId: requestThreadId ?? undefined,
+          content: text,
+          modelAlias: effectiveModelAlias,
+          webSearch,
+          parentMessageId: requestParentMessageId,
+          attachments: effectiveAttachments
+        }),
         signal: controller.signal
       });
       if (!response.ok || !response.body) {
@@ -930,6 +1331,146 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
     setRunningThreadId(null);
   }
 
+  async function uploadFiles(files: FileList | File[]) {
+    const list = Array.from(files);
+    if (!list.length) return;
+    setUploadingCount((count) => count + list.length);
+    try {
+      const results = await Promise.all(
+        list.map(async (file) => {
+          const formData = new FormData();
+          formData.append("file", file);
+          const response = await fetch(`${API_BASE_URL}/admin/chat/upload`, {
+            method: "POST",
+            credentials: "include",
+            body: formData
+          });
+          if (!response.ok) {
+            const detail = await response.text().catch(() => "");
+            throw new Error(`Upload failed for ${file.name}${detail ? `: ${detail.slice(0, 200)}` : ""}`);
+          }
+          const result = await response.json() as { data: Attachment };
+          return result.data;
+        })
+      );
+      setAttachments((current) => [...current, ...results]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploadingCount((count) => Math.max(0, count - list.length));
+    }
+  }
+
+  function removeAttachment(id: string) {
+    setAttachments((current) => current.filter((attachment) => attachment.id !== id));
+  }
+
+  async function deleteMessage(messageId: string) {
+    if (!activeThreadId) return;
+    try {
+      await apiFetch<{ data: { deleted: number; ids: string[] } }>(`/admin/chat/messages/${messageId}`, {
+        method: "DELETE",
+        body: JSON.stringify({ cascade: true })
+      });
+      await loadThread(activeThreadId);
+      await loadThreads().catch(() => undefined);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Delete failed");
+    }
+  }
+
+  function editMessage(message: ChatMessage, newText: string) {
+    const trimmed = newText.trim();
+    if (!trimmed || trimmed === message.contentText) return;
+    const parent = message.parentMessageId ?? null;
+    // Send a new user message as a sibling under the same parent, creating a branch.
+    sendMessage(false, trimmed, { parentMessageId: parent, attachments: message.attachments }).catch((err: Error) => setError(err.message));
+  }
+
+  function regenerateWithModel(alias: string) {
+    sendMessage(true, undefined, { overrideModelAlias: alias }).catch((err: Error) => setError(err.message));
+  }
+
+  async function navigateSibling(threadId: string) {
+    // Simplified: reload the thread to refresh sibling state from the active path.
+    await loadThread(threadId).catch((err: Error) => setError(err.message));
+  }
+
+  function toggleVoiceInput() {
+    if (isListening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+    type SpeechWindow = { SpeechRecognition?: SpeechRecognitionConstructor; webkitSpeechRecognition?: SpeechRecognitionConstructor };
+    const speechWindow = (typeof window !== "undefined" ? (window as unknown as SpeechWindow) : undefined);
+    const ctor = speechWindow?.SpeechRecognition ?? speechWindow?.webkitSpeechRecognition;
+    if (!ctor) {
+      setError("Voice input is not supported in this browser.");
+      return;
+    }
+    const recognition = new ctor();
+    recognition.lang = navigator.language || "en-US";
+    recognition.interimResults = true;
+    recognition.continuous = true;
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      let transcript = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i];
+        if (result) transcript += result[0]?.transcript ?? "";
+      }
+      if (transcript) {
+        setContent((current) => {
+          const separator = current && !current.endsWith(" ") ? " " : "";
+          return current + separator + transcript.trim();
+        });
+      }
+    };
+    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+      setError(`Voice input error: ${event.error}`);
+    };
+    recognition.onend = () => setIsListening(false);
+    recognitionRef.current = recognition;
+    try {
+      recognition.start();
+      setIsListening(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Voice input failed to start");
+    }
+  }
+
+  function exportThreadMarkdown() {
+    const lines: string[] = [];
+    lines.push(`# ${activeThread?.title ?? "Chat Export"}`);
+    lines.push("");
+    if (activeThread) {
+      lines.push(`_Exported ${new Date().toISOString()}_`);
+      lines.push("");
+    }
+    for (const message of messages) {
+      if (message.role === "user") {
+        lines.push(`## User`);
+        lines.push("");
+        lines.push(message.contentText);
+        lines.push("");
+      } else {
+        lines.push(`## Assistant (${message.modelAlias ?? "unknown"})`);
+        lines.push("");
+        lines.push(message.contentText);
+        lines.push("");
+      }
+    }
+    const blob = new Blob([lines.join("\n")], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const safeName = (activeThread?.title ?? "chat").replace(/[^a-z0-9-_]+/gi, "-").slice(0, 60) || "chat";
+    a.download = `${safeName}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
   const activeModel = models.find((model) => model.alias === modelAlias);
   const activeThread = threads.find((thread) => thread.id === activeThreadId);
   const filteredThreads = threads.filter((thread) => thread.title.toLowerCase().includes(historyFilter.trim().toLowerCase()));
@@ -986,6 +1527,7 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
                   <div className="flex h-9 items-center gap-2 rounded-lg border border-white/[0.06] bg-[#1f1e1c] px-3 text-[#807a6f]">
                     <Search className="h-4 w-4 shrink-0" />
                     <input
+                      ref={searchInputRef}
                       className="min-w-0 flex-1 bg-transparent text-sm text-[#b8b3a8] outline-none placeholder:text-[#5a554d]"
                       placeholder="Search chats"
                       value={historyFilter}
@@ -1109,6 +1651,17 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
             </div>
             <div className="flex items-center gap-2">
               <ModelPicker models={models} value={modelAlias} onChange={setModelAlias} />
+              {activeThreadId ? (
+                <Button
+                  variant="ghost"
+                  className="h-9 shrink-0 rounded-lg border border-white/[0.06] px-2.5 text-xs text-[#807a6f] hover:bg-white/[0.04] hover:text-[#ece9e4]"
+                  onClick={exportThreadMarkdown}
+                  title="Export thread as Markdown"
+                >
+                  <Download className="h-4 w-4" />
+                  <span className="hidden sm:inline">Export</span>
+                </Button>
+              ) : null}
             </div>
           </header>
 
@@ -1119,25 +1672,29 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
                 <div className="flex flex-1 flex-col items-center justify-center px-4 pt-12">
                   <h2 className="text-2xl md:text-3xl font-semibold tracking-tight text-[#ece9e4]">{activeModel?.alias ?? "AI Gateway"}</h2>
                   <p className="mt-2 text-center text-sm text-[#807a6f]">
-                    {activeModel ? `${activeModel.provider} / ${activeModel.realModel}` : "Select a model to start"}
+                    {greetingForHour(new Date().getHours())}. {activeModel ? `${activeModel.provider} / ${activeModel.realModel}` : "Select a model to start"}
                   </p>
                   <div className="mt-8 grid w-full max-w-2xl grid-cols-1 gap-2 sm:grid-cols-2">
-                    {[
-                      { title: "Explain a concept", prompt: "Explain how transformers work in machine learning, with a simple analogy" },
-                      { title: "Write code", prompt: "Write a Python function that implements binary search with type hints" },
-                      { title: "Analyze data", prompt: "What are the key metrics I should track for an API gateway?" },
-                      { title: "Draft content", prompt: "Write a release note for a new AI gateway dashboard feature" }
-                    ].map((suggestion) => (
+                    {buildSuggestions(suggestionSeed).map((suggestion) => (
                       <button
-                        key={suggestion.title}
+                        key={`${suggestion.category}-${suggestion.title}`}
                         className="group rounded-xl border border-white/[0.06] bg-[#232220] p-3.5 text-left transition-colors duration-150 hover:border-white/[0.12] hover:bg-[#2a2825]"
                         onClick={() => sendMessage(false, suggestion.prompt).catch((err: Error) => setError(err.message))}
                       >
-                        <div className="text-sm font-medium text-[#ece9e4]">{suggestion.title}</div>
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-sm font-medium text-[#ece9e4]">{suggestion.title}</div>
+                          <span className="shrink-0 rounded border border-white/[0.07] bg-white/[0.03] px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-[#5a554d]">{suggestion.category}</span>
+                        </div>
                         <div className="mt-1 line-clamp-2 text-xs text-[#807a6f]">{suggestion.prompt}</div>
                       </button>
                     ))}
                   </div>
+                  <button
+                    className="mt-4 text-xs text-[#5a554d] transition hover:text-[#807a6f]"
+                    onClick={() => setSuggestionSeed(Date.now() & 0xffffffff)}
+                  >
+                    Shuffle suggestions
+                  </button>
                 </div>
               ) : null}
               {messages.map((message) => {
@@ -1149,7 +1706,13 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
                     message={message}
                     run={runId ? runByMessage.get(runId) : undefined}
                     steps={messageSteps}
+                    models={models}
+                    canEdit
                     onRegenerate={() => sendMessage(true).catch((err: Error) => setError(err.message))}
+                    onRegenerateWithModel={(alias) => regenerateWithModel(alias)}
+                    onEditSave={(text) => editMessage(message, text)}
+                    onDelete={() => deleteMessage(message.id).catch((err: Error) => setError(err.message))}
+                    onNavigateSibling={() => { if (activeThreadId) navigateSibling(activeThreadId).catch(() => undefined); }}
                   />
                 );
               })}
@@ -1191,16 +1754,49 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
                       </div>
                     )}
                     <ThinkingDisclosure content={streamingReasoning} live />
-                    {streamingText ? <MarkdownBlock content={streamingText} /> : null}
+                    {streamingText ? (
+                      <>
+                        <MarkdownBlock content={streamingText} />
+                        <span className="inline-block h-4 w-2 translate-y-0.5 animate-pulse rounded-sm bg-[#7aab5e]" />
+                      </>
+                    ) : null}
                   </div>
                 </div>
               ) : null}
             </div>
           </div>
 
-          <div className="sticky bottom-0 bg-[#1a1a19] px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 md:px-6 md:pb-5">
-            <div className="mx-auto max-w-[1050px] rounded-xl border border-white/[0.07] bg-[#232220] px-3 py-2 transition-colors focus-within:border-white/[0.14]">
+          <div
+            className="sticky bottom-0 bg-[#1a1a19] px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 md:px-6 md:pb-5"
+            onDragOver={(event) => { if (event.dataTransfer.types.includes("Files")) { event.preventDefault(); setDragActive(true); } }}
+            onDragLeave={() => setDragActive(false)}
+            onDrop={(event) => {
+              if (!event.dataTransfer.files.length) return;
+              event.preventDefault();
+              setDragActive(false);
+              uploadFiles(event.dataTransfer.files).catch((err: Error) => setError(err.message));
+            }}
+          >
+            {dragActive ? (
+              <div className="absolute inset-0 z-10 m-2 rounded-xl border-2 border-dashed border-[#7aab5e] bg-[#7aab5e]/10 backdrop-blur-sm" />
+            ) : null}
+            <div className={cn("mx-auto max-w-[1050px] rounded-xl border bg-[#232220] px-3 py-2 transition-colors focus-within:border-white/[0.14]", dragActive ? "border-[#7aab5e]" : "border-white/[0.07]")}>
+              {attachments.length > 0 || uploadingCount > 0 ? (
+                <div className="mb-1.5 flex flex-wrap gap-1.5">
+                  {attachments.map((attachment) => (
+                    <span key={attachment.id} className="group inline-flex items-center gap-1.5 rounded-lg border border-white/[0.07] bg-[#1f1e1c] py-1 pl-2 pr-1 text-xs text-[#b8b3a8]">
+                      <Paperclip className="h-3 w-3 text-[#807a6f]" />
+                      <span className="max-w-[10rem] truncate">{attachment.filename}</span>
+                      <button className="inline-flex h-4 w-4 items-center justify-center rounded text-[#807a6f] transition hover:bg-white/[0.08] hover:text-[#ece9e4]" onClick={() => removeAttachment(attachment.id)}>
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                  {uploadingCount > 0 ? <span className="inline-flex items-center gap-1 rounded-lg border border-white/[0.07] bg-[#1f1e1c] px-2 py-1 text-xs text-[#807a6f]"><Loader2 className="h-3 w-3 animate-spin" /> Uploading…</span> : null}
+                </div>
+              ) : null}
               <textarea
+                ref={textareaRef}
                 className="max-h-44 min-h-[2.5rem] w-full resize-none bg-transparent px-1 py-2 text-sm leading-6 text-[#ece9e4] outline-none placeholder:text-[#807a6f]"
                 placeholder="Send a message..."
                 value={content}
@@ -1212,9 +1808,40 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
                     sendMessage().catch((err: Error) => setError(err.message));
                   }
                 }}
+                onPaste={(event) => {
+                  const items = event.clipboardData?.items;
+                  if (!items) return;
+                  const files: File[] = [];
+                  const itemList = Array.from(items as unknown as Iterable<DataTransferItem>);
+                  for (const item of itemList) {
+                    if (item.kind === "file") {
+                      const file = item.getAsFile();
+                      if (file) files.push(file);
+                    }
+                  }
+                  if (files.length) {
+                    event.preventDefault();
+                    uploadFiles(files).catch((err: Error) => setError(err.message));
+                  }
+                }}
               />
               <div className="flex min-h-9 items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    accept="image/*,text/*,.pdf,.json,.js,.ts,.py,.zip,.sh,.md"
+                    className="hidden"
+                    onChange={(event) => { if (event.target.files) uploadFiles(event.target.files).catch((err: Error) => setError(err.message)); event.target.value = ""; }}
+                  />
+                  <button
+                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/[0.06] px-2 text-xs text-[#807a6f] transition hover:bg-white/[0.04] hover:text-[#ece9e4]"
+                    onClick={() => fileInputRef.current?.click()}
+                    title="Attach file"
+                  >
+                    <Paperclip className="h-3.5 w-3.5" />
+                  </button>
                   {webSearchAvailable ? (
                     <button
                       className={cn("inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/[0.06] px-2 text-xs transition", webSearch ? "bg-[#7aab5e]/10 text-[#9bc480]" : "text-[#807a6f] hover:bg-white/[0.04] hover:text-[#ece9e4]")}
@@ -1225,6 +1852,15 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
                   ) : null}
                 </div>
                 <div className="flex items-center gap-1.5">
+                  {voiceSupported ? (
+                    <button
+                      className={cn("inline-flex h-8 w-8 items-center justify-center rounded-lg border text-xs transition", isListening ? "border-[#d65d5d]/30 bg-[#d65d5d]/10 text-[#e8a0a0]" : "border-white/[0.06] text-[#807a6f] hover:bg-white/[0.04] hover:text-[#ece9e4]")}
+                      onClick={toggleVoiceInput}
+                      title={isListening ? "Stop voice input" : "Start voice input"}
+                    >
+                      {isListening ? <span className="h-3 w-3 animate-pulse rounded-full bg-[#d65d5d]" /> : <Mic className="h-3.5 w-3.5" />}
+                    </button>
+                  ) : null}
                   {isRunning ? (
                     <Button variant="secondary" className="h-8 rounded-lg px-3 text-xs" onClick={stop}><Square className="h-3 w-3" /> Stop</Button>
                   ) : (
