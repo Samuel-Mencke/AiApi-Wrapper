@@ -638,6 +638,7 @@ function MessageView({
     return (
       <div className="group flex justify-end gap-2 py-3">
         <div className="flex max-w-[min(680px,85%)] flex-col items-end gap-1.5">
+          <div className="text-xs font-medium text-[#807a6f]">Du</div>
           {attachments.length > 0 ? (
             <div className="flex flex-wrap justify-end gap-2">
               {attachments.map((attachment) => <AttachmentThumb key={attachment.id} attachment={attachment} />)}
@@ -686,7 +687,7 @@ function MessageView({
             </div>
           )}
           {!isEditing ? (
-            <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1 text-xs text-[#807a6f]">
+            <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1 text-xs text-[#807a6f] opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100 max-sm:opacity-100">
               <SiblingNav message={message} onNavigate={onNavigateSibling} />
               <button className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-[#807a6f] transition hover:bg-white/[0.04] hover:text-[#ece9e4]" onClick={() => navigator.clipboard.writeText(message.contentText)}>
                 <Copy className="h-3.5 w-3.5" /> Copy
@@ -729,11 +730,12 @@ function MessageView({
         <span className="text-[10px] font-bold text-[#1a1a19]">AI</span>
       </div>
       <div className="min-w-0 flex-1 space-y-2">
+        <div className="text-xs font-medium text-[#807a6f]">{message.modelAlias ?? "Assistant"}</div>
         <ThinkingDisclosure content={reasoningText} />
         <div className="space-y-3 text-[15px] leading-7 text-[#ece9e4]">
           {blocks.map((block, index) => <RichBlockView key={index} block={block} />)}
         </div>
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pt-1 text-xs text-[#807a6f]">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pt-1 text-xs text-[#807a6f] opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100 max-sm:opacity-100">
           <SiblingNav message={message} onNavigate={onNavigateSibling} />
           <CopyButton value={message.contentText} />
           <div className="relative">
@@ -828,33 +830,33 @@ const SUGGESTION_POOLS: SuggestionPool[] = [
   {
     category: "Code",
     items: [
-      { title: "Python binary search", prompt: "Write a Python function that implements binary search with type hints" },
-      { title: "React useDebounce hook", prompt: "Write a useDebounce hook in TypeScript for React" },
-      { title: "SQL schema for users", prompt: "Design a normalized SQL schema for a users + roles system" }
+      { title: "Python Sort-Algorithmus", prompt: "Schreibe eine Python-Funktion die eine Liste effizient sortiert, mit Typ-Annotationen" },
+      { title: "React useDebounce Hook", prompt: "Schreibe einen useDebounce Hook in TypeScript für React" },
+      { title: "SQL Schema für User", prompt: "Entwerfe ein normalisiertes SQL-Schema für ein User- und Rollensystem" }
     ]
   },
   {
-    category: "Explain",
+    category: "Erklären",
     items: [
-      { title: "How transformers work", prompt: "Explain how transformers work in machine learning, with a simple analogy" },
-      { title: "Explain raft consensus", prompt: "Explain the Raft consensus algorithm like I am new to distributed systems" },
-      { title: "What is an index?", prompt: "Explain what a database index is and when to use one, with examples" }
+      { title: "Wie funktionieren Transformer?", prompt: "Erkläre wie Transformer in Machine Learning funktionieren, mit einer einfachen Analogie" },
+      { title: "Was ist ein Index?", prompt: "Erkläre was ein Datenbank-Index ist und wann man ihn nutzt, mit Beispielen" },
+      { title: "Raft Consensus", prompt: "Erkläre den Raft Consensus Algorithmus so, als wäre ich neu in verteilten Systemen" }
     ]
   },
   {
-    category: "Analyze",
+    category: "Analysieren",
     items: [
-      { title: "API gateway metrics", prompt: "What are the key metrics I should track for an API gateway?" },
-      { title: "Compare ORMs", prompt: "Compare Prisma, Drizzle, and Kysely for a TypeScript backend" },
-      { title: "Review caching strategies", prompt: "Summarize the main caching strategies and their trade-offs" }
+      { title: "ORMs vergleichen", prompt: "Vergleiche Prisma, Drizzle und Kysely für ein TypeScript-Backend" },
+      { title: "Caching Strategien", prompt: "Fasse die wichtigsten Caching-Strategien und ihre Trade-offs zusammen" },
+      { title: "API Metriken", prompt: "Welche Metriken sollte ich für ein API-Gateway überwachen?" }
     ]
   },
   {
-    category: "Creative",
+    category: "Kreativ",
     items: [
-      { title: "Release note draft", prompt: "Write a release note for a new AI gateway dashboard feature" },
-      { title: "Product tagline ideas", prompt: "Brainstorm 5 taglines for a developer-focused observability tool" },
-      { title: "Onboarding email", prompt: "Draft a friendly onboarding email for new users of an AI platform" }
+      { title: "Release Notes", prompt: "Schreibe Release Notes für ein neues AI Dashboard Feature" },
+      { title: "Taglines brainstormen", prompt: "Brainstorme 5 Taglines für ein entwickler-fokussiertes Tool" },
+      { title: "Onboarding Email", prompt: "Schreibe eine freundliche Onboarding-Email für neue Nutzer einer AI-Plattform" }
     ]
   }
 ];
@@ -875,11 +877,11 @@ function buildSuggestions(seed: number) {
 }
 
 function greetingForHour(hour: number) {
-  if (hour < 5) return "Late night";
-  if (hour < 12) return "Good morning";
-  if (hour < 17) return "Good afternoon";
-  if (hour < 22) return "Good evening";
-  return "Late night";
+  if (hour < 5) return "Bereit für eine späte Nacht-Session";
+  if (hour < 12) return "Guten Morgen";
+  if (hour < 17) return "Guten Tag";
+  if (hour < 22) return "Guten Abend";
+  return "Bereit für eine späte Nacht-Session";
 }
 
 function attachmentUrl(url: string) {
@@ -962,6 +964,177 @@ function ModelPicker({ models, value, onChange }: { models: ChatModel[]; value: 
           </div>
         </>
       ) : null}
+    </div>
+  );
+}
+
+interface CentralComposerProps {
+  content: string;
+  setContent: (value: string | ((prev: string) => string)) => void;
+  isRunning: boolean;
+  canSend: boolean;
+  onSend: () => void;
+  onStop: () => void;
+  onUpload: (files: FileList | File[]) => Promise<void>;
+  onPaste: (files: File[]) => void;
+  attachments: Attachment[];
+  uploadingCount: number;
+  onRemoveAttachment: (id: string) => void;
+  models: ChatModel[];
+  modelAlias: string;
+  onModelChange: (alias: string) => void;
+  webSearchAvailable: boolean;
+  webSearch: boolean;
+  onToggleWebSearch: () => void;
+  voiceSupported: boolean;
+  isListening: boolean;
+  onToggleVoice: () => void;
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
+  dragActive: boolean;
+  setDragActive: (value: boolean) => void;
+}
+
+function CentralComposer({
+  content,
+  setContent,
+  isRunning,
+  canSend,
+  onSend,
+  onStop,
+  onUpload,
+  onPaste,
+  attachments,
+  uploadingCount,
+  onRemoveAttachment,
+  models,
+  modelAlias,
+  onModelChange,
+  webSearchAvailable,
+  webSearch,
+  onToggleWebSearch,
+  voiceSupported,
+  isListening,
+  onToggleVoice,
+  textareaRef,
+  fileInputRef,
+  dragActive,
+  setDragActive
+}: CentralComposerProps) {
+  return (
+    <div
+      className="relative"
+      onDragOver={(event) => { if (event.dataTransfer.types.includes("Files")) { event.preventDefault(); setDragActive(true); } }}
+      onDragLeave={() => setDragActive(false)}
+      onDrop={(event) => {
+        if (!event.dataTransfer.files.length) return;
+        event.preventDefault();
+        setDragActive(false);
+        onUpload(event.dataTransfer.files);
+      }}
+    >
+      {dragActive ? (
+        <div className="absolute inset-0 z-10 -m-1 rounded-2xl border-2 border-dashed border-[#7aab5e] bg-[#7aab5e]/10 backdrop-blur-sm" />
+      ) : null}
+      <div className={cn("rounded-2xl border bg-[#232220] px-3 py-2 transition-colors focus-within:border-white/[0.14]", dragActive ? "border-[#7aab5e]" : "border-white/[0.08]")}>
+        {attachments.length > 0 || uploadingCount > 0 ? (
+          <div className="mb-1.5 flex flex-wrap gap-1.5">
+            {attachments.map((attachment) => (
+              <span key={attachment.id} className="group inline-flex items-center gap-1.5 rounded-lg border border-white/[0.07] bg-[#1f1e1c] py-1 pl-2 pr-1 text-xs text-[#b8b3a8]">
+                <Paperclip className="h-3 w-3 text-[#807a6f]" />
+                <span className="max-w-[10rem] truncate">{attachment.filename}</span>
+                <button className="inline-flex h-4 w-4 items-center justify-center rounded text-[#807a6f] transition hover:bg-white/[0.08] hover:text-[#ece9e4]" onClick={() => onRemoveAttachment(attachment.id)}>
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+            {uploadingCount > 0 ? <span className="inline-flex items-center gap-1 rounded-lg border border-white/[0.07] bg-[#1f1e1c] px-2 py-1 text-xs text-[#807a6f]"><Loader2 className="h-3 w-3 animate-spin" /> Uploading…</span> : null}
+          </div>
+        ) : null}
+        <textarea
+          ref={textareaRef}
+          className="max-h-44 min-h-[3rem] w-full resize-none bg-transparent px-1 py-2 text-[15px] leading-7 text-[#ece9e4] outline-none placeholder:text-[#807a6f]"
+          placeholder="Frag mich was..."
+          value={content}
+          rows={1}
+          suppressHydrationWarning
+          onChange={(event) => {
+            setContent(event.target.value);
+            // Auto-resize
+            const el = event.target;
+            el.style.height = "auto";
+            el.style.height = `${Math.min(el.scrollHeight, 176)}px`;
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              onSend();
+            }
+          }}
+          onPaste={(event) => {
+            const items = event.clipboardData?.items;
+            if (!items) return;
+            const files: File[] = [];
+            const itemList = Array.from(items as unknown as Iterable<DataTransferItem>);
+            for (const item of itemList) {
+              if (item.kind === "file") {
+                const file = item.getAsFile();
+                if (file) files.push(file);
+              }
+            }
+            if (files.length) {
+              event.preventDefault();
+              onPaste(files);
+            }
+          }}
+        />
+        <div className="flex min-h-9 items-center justify-between gap-2 pt-1">
+          <div className="flex items-center gap-1.5">
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept="image/*,text/*,.pdf,.json,.js,.ts,.py,.zip,.sh,.md"
+              className="hidden"
+              onChange={(event) => { if (event.target.files) onUpload(event.target.files); event.target.value = ""; }}
+            />
+            <button
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/[0.06] px-2 text-xs text-[#807a6f] transition hover:bg-white/[0.04] hover:text-[#ece9e4]"
+              onClick={() => fileInputRef.current?.click()}
+              title="Datei anhängen"
+            >
+              <Paperclip className="h-3.5 w-3.5" />
+            </button>
+            <ModelPicker models={models} value={modelAlias} onChange={onModelChange} />
+            {webSearchAvailable ? (
+              <button
+                className={cn("inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/[0.06] px-2 text-xs transition", webSearch ? "bg-[#7aab5e]/10 text-[#9bc480]" : "text-[#807a6f] hover:bg-white/[0.04] hover:text-[#ece9e4]")}
+                onClick={onToggleWebSearch}
+              >
+                <Search className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Web</span>
+              </button>
+            ) : null}
+          </div>
+          <div className="flex items-center gap-1.5">
+            {voiceSupported ? (
+              <button
+                className={cn("inline-flex h-8 w-8 items-center justify-center rounded-lg border text-xs transition", isListening ? "border-[#d65d5d]/30 bg-[#d65d5d]/10 text-[#e8a0a0]" : "border-white/[0.06] text-[#807a6f] hover:bg-white/[0.04] hover:text-[#ece9e4]")}
+                onClick={onToggleVoice}
+                title={isListening ? "Spracheingabe stoppen" : "Spracheingabe starten"}
+              >
+                {isListening ? <span className="h-3 w-3 animate-pulse rounded-full bg-[#d65d5d]" /> : <Mic className="h-3.5 w-3.5" />}
+              </button>
+            ) : null}
+            {isRunning ? (
+              <Button variant="secondary" className="h-8 rounded-lg px-3 text-xs" onClick={onStop}><Square className="h-3 w-3" /> Stop</Button>
+            ) : (
+              <Button className="h-8 rounded-lg px-3 text-xs" disabled={!canSend} onClick={onSend}>
+                <Send className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1478,6 +1651,7 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
   const showRunning = isRunning && activeThreadId === runningThreadId;
   const activeRun = runs.at(-1);
   const visibleRunningSteps = activeRun ? steps.filter((step) => step.runId === activeRun.id) : [];
+  const isWelcomeState = !messages.length && !showRunning;
 
   return (
     <PageShell flush>
@@ -1665,38 +1839,71 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
             </div>
           </header>
 
-          <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 md:px-6">
-            <div className="mx-auto flex min-h-full max-w-[1050px] flex-col">
-              {error ? <div className="mt-4 rounded-lg border border-[#d65d5d]/25 bg-[#d65d5d]/10 p-3 text-sm text-[#e8a0a0]">{error}</div> : null}
-              {!messages.length && !showRunning ? (
-                <div className="flex flex-1 flex-col items-center justify-center px-4 pt-12">
-                  <h2 className="text-2xl md:text-3xl font-semibold tracking-tight text-[#ece9e4]">{activeModel?.alias ?? "AI Gateway"}</h2>
-                  <p className="mt-2 text-center text-sm text-[#807a6f]">
-                    {greetingForHour(new Date().getHours())}. {activeModel ? `${activeModel.provider} / ${activeModel.realModel}` : "Select a model to start"}
-                  </p>
-                  <div className="mt-8 grid w-full max-w-2xl grid-cols-1 gap-2 sm:grid-cols-2">
+          <div ref={scrollRef} className="flex-1 overflow-y-auto">
+            {isWelcomeState ? (
+              <div className="flex min-h-full flex-col items-center justify-center px-4 py-8">
+                <div className="w-full max-w-[760px]">
+                  {/* Welcome heading */}
+                  <div className="mb-6 text-center">
+                    <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-[#ece9e4]">
+                      {greetingForHour(new Date().getHours())}
+                    </h1>
+                    <p className="mt-1.5 text-sm text-[#807a6f]">
+                      Was möchtest du heute machen?
+                    </p>
+                  </div>
+                  {/* Central input — ChatGPT style */}
+                  <CentralComposer
+                    content={content}
+                    setContent={setContent}
+                    isRunning={isRunning}
+                    canSend={Boolean(content.trim() && modelAlias)}
+                    onSend={() => sendMessage().catch((err: Error) => setError(err.message))}
+                    onStop={stop}
+                    onUpload={uploadFiles}
+                    onPaste={(files: File[]) => uploadFiles(files).catch((err: Error) => setError(err.message))}
+                    attachments={attachments}
+                    uploadingCount={uploadingCount}
+                    onRemoveAttachment={removeAttachment}
+                    models={models}
+                    modelAlias={modelAlias}
+                    onModelChange={setModelAlias}
+                    webSearchAvailable={webSearchAvailable}
+                    webSearch={webSearch}
+                    onToggleWebSearch={() => setWebSearch(!webSearch)}
+                    voiceSupported={voiceSupported}
+                    isListening={isListening}
+                    onToggleVoice={toggleVoiceInput}
+                    textareaRef={textareaRef}
+                    fileInputRef={fileInputRef}
+                    dragActive={dragActive}
+                    setDragActive={setDragActive}
+                  />
+                  {/* Suggestion chips */}
+                  <div className="mt-6 flex flex-wrap justify-center gap-2">
                     {buildSuggestions(suggestionSeed).map((suggestion) => (
                       <button
                         key={`${suggestion.category}-${suggestion.title}`}
-                        className="group rounded-xl border border-white/[0.06] bg-[#232220] p-3.5 text-left transition-colors duration-150 hover:border-white/[0.12] hover:bg-[#2a2825]"
+                        className="rounded-full border border-white/[0.08] bg-[#232220] px-3.5 py-2 text-xs text-[#b8b3a8] transition-colors duration-150 hover:border-white/[0.16] hover:bg-[#2a2825] hover:text-[#ece9e4]"
                         onClick={() => sendMessage(false, suggestion.prompt).catch((err: Error) => setError(err.message))}
                       >
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="text-sm font-medium text-[#ece9e4]">{suggestion.title}</div>
-                          <span className="shrink-0 rounded border border-white/[0.07] bg-white/[0.03] px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-[#5a554d]">{suggestion.category}</span>
-                        </div>
-                        <div className="mt-1 line-clamp-2 text-xs text-[#807a6f]">{suggestion.prompt}</div>
+                        {suggestion.title}
                       </button>
                     ))}
                   </div>
-                  <button
-                    className="mt-4 text-xs text-[#5a554d] transition hover:text-[#807a6f]"
-                    onClick={() => setSuggestionSeed(Date.now() & 0xffffffff)}
-                  >
-                    Shuffle suggestions
-                  </button>
+                  <div className="mt-3 flex justify-center">
+                    <button
+                      className="text-xs text-[#5a554d] transition hover:text-[#807a6f]"
+                      onClick={() => setSuggestionSeed(Date.now() & 0xffffffff)}
+                    >
+                      Andere Vorschläge
+                    </button>
+                  </div>
                 </div>
-              ) : null}
+              </div>
+            ) : (
+            <div className="mx-auto flex min-h-full max-w-[1050px] flex-col px-4 md:px-6">
+              {error ? <div className="mt-4 rounded-lg border border-[#d65d5d]/25 bg-[#d65d5d]/10 p-3 text-sm text-[#e8a0a0]">{error}</div> : null}
               {messages.map((message) => {
                 const runId = typeof message.metadata?.runId === "string" ? message.metadata.runId : undefined;
                 const messageSteps = runId ? steps.filter((step) => step.runId === runId) : [];
@@ -1750,7 +1957,7 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
                     {visibleRunningSteps.length === 0 && (
                       <div className="flex items-center gap-2 text-sm text-[#807a6f]">
                         <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#7aab5e]" />
-                        Thinking...
+                        Denke nach...
                       </div>
                     )}
                     <ThinkingDisclosure content={streamingReasoning} live />
@@ -1764,8 +1971,10 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
                 </div>
               ) : null}
             </div>
+            )}
           </div>
 
+          {!isWelcomeState ? (
           <div
             className="sticky bottom-0 bg-[#1a1a19] px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 md:px-6 md:pb-5"
             onDragOver={(event) => { if (event.dataTransfer.types.includes("Files")) { event.preventDefault(); setDragActive(true); } }}
@@ -1800,8 +2009,14 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
                 className="max-h-44 min-h-[2.5rem] w-full resize-none bg-transparent px-1 py-2 text-sm leading-6 text-[#ece9e4] outline-none placeholder:text-[#807a6f]"
                 placeholder="Send a message..."
                 value={content}
+                rows={1}
                 suppressHydrationWarning
-                onChange={(event) => setContent(event.target.value)}
+                onChange={(event) => {
+                  setContent(event.target.value);
+                  const el = event.target;
+                  el.style.height = "auto";
+                  el.style.height = `${Math.min(el.scrollHeight, 176)}px`;
+                }}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" && !event.shiftKey) {
                     event.preventDefault();
@@ -1872,6 +2087,7 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
               </div>
             </div>
           </div>
+          ) : null}
         </main>
       </div>
     </PageShell>
