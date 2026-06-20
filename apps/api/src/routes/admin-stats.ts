@@ -317,6 +317,70 @@ export async function adminStatsRoutes(app: FastifyInstance): Promise<void> {
         resetsAt: new Date(Date.now() + setting.windowHours * 60 * 60 * 1000).toISOString()
       };
     });
+    // === Model Performance Scoring ===
+    // Builds a per-model performance profile with normalized 0-100 scores.
+    // Metrics: throughput (tokens/sec), latency, cost efficiency, reliability, total volume.
+    const modelPerformance = modelUsage
+      .filter((m) => m.requests > 0)
+      .map((m) => {
+        const latencySec = m.averageLatencyMs / 1000;
+        const throughput = latencySec > 0 ? m.outputTokens / latencySec : 0; // output tokens per second
+        const costPer1k = m.totalTokens > 0 ? (m.estimatedCost / m.totalTokens) * 1000 : 0;
+        const reliability = 1 - m.errorRate;
+        return {
+          modelAlias: m.modelAlias ?? m.label,
+          provider: m.provider ?? "",
+          requests: m.requests,
+          inputTokens: m.inputTokens,
+          outputTokens: m.outputTokens,
+          totalTokens: m.totalTokens,
+          estimatedCost: m.estimatedCost,
+          averageLatencyMs: m.averageLatencyMs,
+          throughput,         // tokens/sec
+          costPer1kTokens: costPer1k,
+          errorRate: m.errorRate,
+          reliability         // 0-1
+        };
+      });
+
+    // Normalize each metric to 0-100 across the set (higher = better).
+    // throughput, reliability, totalTokens → higher is better
+    // latency, costPer1k, errorRate → lower is better (invert)
+    if (modelPerformance.length > 0) {
+      const maxThroughput = Math.max(...modelPerformance.map(m => m.throughput));
+      const maxLatency = Math.max(...modelPerformance.map(m => m.averageLatencyMs));
+      const maxCost = Math.max(...modelPerformance.map(m => m.costPer1kTokens));
+      const maxTokens = Math.max(...modelPerformance.map(m => m.totalTokens));
+      const maxErrors = Math.max(...modelPerformance.map(m => m.errorRate));
+
+      for (const m of modelPerformance) {
+        const throughputScore = maxThroughput > 0 ? (m.throughput / maxThroughput) * 100 : 0;
+        const latencyScore = maxLatency > 0 ? (1 - m.averageLatencyMs / maxLatency) * 100 : 100;
+        const costScore = maxCost > 0 ? (1 - m.costPer1kTokens / maxCost) * 100 : 100;
+        const reliabilityScore = maxErrors > 0 ? (1 - m.errorRate / maxErrors) * 100 : 100;
+        const volumeScore = maxTokens > 0 ? (m.totalTokens / maxTokens) * 100 : 0;
+
+        // Composite: weighted average emphasizing throughput & reliability
+        const composite = Math.round(
+          throughputScore * 0.30 +
+          latencyScore * 0.20 +
+          reliabilityScore * 0.25 +
+          costScore * 0.15 +
+          volumeScore * 0.10
+        );
+
+        (m as any).scores = {
+          throughput: Math.round(throughputScore),
+          latency: Math.round(latencyScore),
+          cost: Math.round(costScore),
+          reliability: Math.round(reliabilityScore),
+          volume: Math.round(volumeScore),
+          composite
+        };
+      }
+      modelPerformance.sort((a, b) => (b as any).scores.composite - (a as any).scores.composite);
+    }
+
     const slowestProvider = providerUsage.reduce<UsageAggregate | null>(
       (slowest, usage) => (!slowest || usage.averageLatencyMs > slowest.averageLatencyMs ? usage : slowest),
       null
@@ -364,6 +428,7 @@ export async function adminStatsRoutes(app: FastifyInstance): Promise<void> {
       usageByApiKeyModel: Array.from(usageByApiKeyModel.values()).map(finalizeUsage),
       usageByModel: modelUsage,
       usageByProvider: providerUsage,
+      modelPerformance,
       chatUsage,
       quotaWindows,
       topStats: {

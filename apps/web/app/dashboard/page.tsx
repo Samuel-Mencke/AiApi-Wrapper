@@ -65,6 +65,29 @@ interface ProviderQuotaStatus {
   };
 }
 
+interface ModelPerformanceEntry {
+  modelAlias: string;
+  provider: string;
+  requests: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  estimatedCost: number;
+  averageLatencyMs: number;
+  throughput: number;          // output tokens/sec
+  costPer1kTokens: number;
+  errorRate: number;
+  reliability: number;         // 0-1
+  scores: {
+    throughput: number;
+    latency: number;
+    cost: number;
+    reliability: number;
+    volume: number;
+    composite: number;
+  };
+}
+
 interface Stats {
   requestsToday: number;
   requestsLast5h: number;
@@ -92,6 +115,7 @@ interface Stats {
   usageByApiKeyModel: UsageAggregate[];
   usageByModel: UsageAggregate[];
   usageByProvider: UsageAggregate[];
+  modelPerformance: ModelPerformanceEntry[];
   chatUsage: UsageAggregate;
   quotaWindows: QuotaWindow[];
   topStats: {
@@ -328,6 +352,122 @@ function QuotaMeter({ label, used, limit, value }: { label: string; used: number
   );
 }
 
+function scoreColor(score: number) {
+  if (score >= 75) return "#7aab5e";   // green
+  if (score >= 50) return "#e0a83e";   // amber
+  if (score >= 25) return "#f58d49";   // orange
+  return "#d65d5d";                     // red
+}
+
+function ScoreBar({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="space-y-1">
+      <div className="flex justify-between text-[10px] text-[#807a6f]">
+        <span>{label}</span>
+        <span className="font-medium text-[#b8b3a8]">{value}</span>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-[#262629]">
+        <div className="h-full rounded-full" style={{ width: `${value}%`, background: scoreColor(value) }} />
+      </div>
+    </div>
+  );
+}
+
+function ModelPerformancePanel({ entries }: { entries: ModelPerformanceEntry[] }) {
+  if (!entries.length) return null;
+  const top = entries[0]!;
+
+  return (
+    <Card className="bg-[#232220]">
+      <CardHeader className="flex flex-row items-center justify-between gap-3">
+        <div>
+          <CardTitle>Model Performance Ranking</CardTitle>
+          <p className="mt-1 text-xs text-[#807a6f]">Composite score aus Speed, Tokens/s, Zuverlaessigkeit, Kosten & Volume.</p>
+        </div>
+        <Badge className="border-[#7aab5e]/25 bg-[#7aab5e]/10 text-[#9bc480]">
+          #1 {top.modelAlias}
+        </Badge>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {/* Header row */}
+        <div className="hidden grid-cols-[1.5fr_0.7fr_0.8fr_0.7fr_0.8fr_2fr] gap-3 border-b border-white/[0.06] px-2 pb-2 text-[10px] uppercase tracking-wide text-[#807a6f] sm:grid">
+          <span>Model</span>
+          <span className="text-right">Tokens/s</span>
+          <span className="text-right">Latency</span>
+          <span className="text-right">Error %</span>
+          <span className="text-right">Requests</span>
+          <span className="text-center">Score Breakdown</span>
+        </div>
+
+        {entries.map((entry, index) => {
+          const s = entry.scores;
+          return (
+            <div
+              key={entry.modelAlias}
+              className="grid grid-cols-2 gap-2 rounded-lg border border-white/[0.05] bg-[#1f1e1c] p-3 sm:grid-cols-[1.5fr_0.7fr_0.8fr_0.7fr_0.8fr_2fr] sm:items-center sm:gap-3"
+            >
+              {/* Rank + Model */}
+              <div className="col-span-2 flex items-center gap-3 sm:col-span-1">
+                <span
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-xs font-bold"
+                  style={{ background: index === 0 ? "#7aab5e20" : "#ffffff08", color: index === 0 ? "#9bc480" : "#807a6f" }}
+                >
+                  {index + 1}
+                </span>
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-medium text-[#ece9e4]">{entry.modelAlias}</div>
+                  <div className="text-[10px] text-[#807a6f]">{entry.provider}</div>
+                </div>
+              </div>
+
+              {/* Tokens/sec */}
+              <div className="text-right">
+                <div className="text-[10px] text-[#807a6f] sm:hidden">Tokens/s</div>
+                <div className="text-sm font-medium text-[#ece9e4]">{entry.throughput.toFixed(1)}</div>
+              </div>
+
+              {/* Latency */}
+              <div className="text-right">
+                <div className="text-[10px] text-[#807a6f] sm:hidden">Latency</div>
+                <div className="text-sm font-medium text-[#ece9e4]">{formatNumber(entry.averageLatencyMs)}ms</div>
+              </div>
+
+              {/* Error rate */}
+              <div className="text-right">
+                <div className="text-[10px] text-[#807a6f] sm:hidden">Errors</div>
+                <div className="text-sm font-medium" style={{ color: entry.errorRate > 0.1 ? "#d65d5d" : "#ece9e4" }}>
+                  {Math.round(entry.errorRate * 100)}%
+                </div>
+              </div>
+
+              {/* Requests */}
+              <div className="text-right">
+                <div className="text-[10px] text-[#807a6f] sm:hidden">Requests</div>
+                <div className="text-sm font-medium text-[#ece9e4]">{formatNumber(entry.requests)}</div>
+              </div>
+
+              {/* Score breakdown */}
+              <div className="col-span-2 mt-1 flex items-center gap-3 sm:col-span-1 sm:mt-0">
+                <div className="flex shrink-0 items-center gap-2">
+                  <span className="text-2xl font-bold tabular-nums" style={{ color: scoreColor(s.composite) }}>{s.composite}</span>
+                  <span className="text-[10px] text-[#807a6f]">/100</span>
+                </div>
+                <div className="grid flex-1 grid-cols-5 gap-1.5">
+                  <ScoreBar label="Speed" value={s.throughput} />
+                  <ScoreBar label="Lat" value={s.latency} />
+                  <ScoreBar label="Rel" value={s.reliability} />
+                  <ScoreBar label="Cost" value={s.cost} />
+                  <ScoreBar label="Vol" value={s.volume} />
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
+  );
+}
+
 function TopUsagePanel({ title, rows, metric }: { title: string; rows: UsageAggregate[]; metric: "requests" | "tokens" | "latency" }) {
   const topRows = rows.slice(0, 6);
   const maxValue = Math.max(
@@ -526,6 +666,8 @@ export default function DashboardPage() {
           </div>
         </CardContent>
       </Card>
+
+      <ModelPerformancePanel entries={stats.modelPerformance ?? []} />
 
       <Card className="bg-[#232220]">
         <CardHeader className="flex flex-row items-center justify-between gap-3">
