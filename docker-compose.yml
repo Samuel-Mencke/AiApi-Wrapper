@@ -3,32 +3,69 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    init: true
     env_file:
       - .env
     environment:
+      HOST: 0.0.0.0
+      PORT: 18789
       DATABASE_URL: file:/data/gateway.db
+      UPLOAD_DIR: /data/uploads
       CONFIG_PATH: config/providers.yml
     ports:
-      - "18789:18789"
+      - "127.0.0.1:${PORT:-18789}:18789"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./config/providers.yml:/app/config/providers.yml:ro
       - gateway-data:/data
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:18789/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    security_opt:
+      - no-new-privileges:true
 
   web:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
       args:
-        NEXT_PUBLIC_API_BASE_URL: https://api.samuelm.de
+        NEXT_PUBLIC_PUBLIC_API_URL: ${NEXT_PUBLIC_PUBLIC_API_URL:-http://localhost:18789}
+        NEXT_PUBLIC_CHAT_URL: ${NEXT_PUBLIC_CHAT_URL:-}
+    restart: unless-stopped
+    init: true
     env_file:
       - .env
     environment:
-      NEXT_PUBLIC_API_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:18789}
+      NEXT_PUBLIC_PUBLIC_API_URL: ${NEXT_PUBLIC_PUBLIC_API_URL:-http://localhost:18789}
+      NEXT_PUBLIC_CHAT_URL: ${NEXT_PUBLIC_CHAT_URL:-}
+      API_BACKEND_URL: http://api:18789
       NODE_OPTIONS: ""
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     ports:
-      - "3000:3000"
+      - "127.0.0.1:${DASHBOARD_PORT:-3000}:3000"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3000/login').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    security_opt:
+      - no-new-privileges:true
 
 volumes:
   gateway-data:

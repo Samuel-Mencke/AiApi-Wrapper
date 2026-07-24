@@ -3,6 +3,13 @@ import { z } from "zod";
 const scalar = z.union([z.string(), z.number(), z.boolean(), z.null()]);
 const dataRow = z.record(scalar);
 
+export const htmlBlockSchema = z.object({
+  type: z.literal("html"),
+  title: z.string().max(200).optional(),
+  content: z.string().min(1).max(100000),
+  fullscreen: z.boolean().optional()
+});
+
 export const markdownBlockSchema = z.object({
   type: z.literal("markdown"),
   content: z.string()
@@ -84,6 +91,7 @@ export const errorBlockSchema = z.object({
 export const richBlockSchema = z.discriminatedUnion("type", [
   markdownBlockSchema,
   codeBlockSchema,
+  htmlBlockSchema,
   tableBlockSchema,
   chartBlockSchema,
   functionPlotBlockSchema,
@@ -135,14 +143,7 @@ function normalizeRawRichBlocks(input: unknown): unknown {
           xKey: value.xKey ?? value.x_key
         };
       }
-      if (value.type === "html" && typeof value.content === "string") {
-        return {
-          type: "code",
-          language: "html",
-          filename: typeof value.title === "string" ? value.title : "legacy-html",
-          content: value.content
-        };
-      }
+      // html blocks are now rendered natively — no conversion needed
       return value;
     })
   };

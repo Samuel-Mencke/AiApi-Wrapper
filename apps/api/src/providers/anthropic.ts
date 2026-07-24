@@ -1,4 +1,4 @@
-import { GatewayError } from "@ai-gateway/core/errors";
+import { GatewayError } from "@model-console/core/errors";
 import type { ProviderAdapter } from "./types.js";
 
 export const anthropicAdapter: ProviderAdapter = {

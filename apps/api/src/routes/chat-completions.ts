@@ -1,5 +1,8 @@
 import type { FastifyInstance } from "fastify";
+import { estimateCostUsd } from "@model-console/core/pricing";
 import { requireApiAuth } from "../middleware/auth.js";
+import { logRequest } from "../middleware/request-logger.js";
+import { applyUncensoredTransform, isUncensoredAlias } from "../middleware/uncensored.js";
 import { executeStreamWithFallback, executeWithFallback } from "../router/fallback.js";
 import { normalizeRequest } from "../router/normalize-request.js";
 import { toOpenAiChatResponse } from "../router/normalize-response.js";
@@ -89,17 +92,30 @@ function sanitizeSSEChunk(parsed: any, includeReasoning: boolean): any | null {
 function createOpenAICompatibleFilter(
   includeUsage: boolean,
   includeReasoning: boolean,
-  modelAlias: string
+  modelAlias: string,
+  onUsage?: (usage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }) => void
 ): TransformStream<Uint8Array, Uint8Array> {
   const decoder = new TextDecoder();
   const encoder = new TextEncoder();
   let lineBuffer = "";
   let pendingUsage: any = null;
+  let usageReported = false;
   let chunkId: string | undefined;
   let chunkCreated: number | undefined;
   let chunkModel: string | undefined;
 
   function emitUsage(controller: TransformStreamDefaultController<any>) {
+    // Report usage to the callback regardless of includeUsage flag,
+    // so the gateway can log real token counts even when the client
+    // didn't ask for usage in the SSE stream.
+    if (pendingUsage && onUsage && !usageReported) {
+      onUsage({
+        prompt_tokens: pendingUsage.prompt_tokens,
+        completion_tokens: pendingUsage.completion_tokens,
+        total_tokens: pendingUsage.total_tokens
+      });
+      usageReported = true;
+    }
     if (!pendingUsage || !includeUsage) {
       pendingUsage = null;
       return;
@@ -207,8 +223,13 @@ export async function chatCompletionRoutes(app: FastifyInstance): Promise<void> 
     const internal = normalizeRequest(request.body);
     internal.requestId = request.requestId;
 
+    // Uncensored mode: strip all system prompts, inject uncensored prompt
+    if (isUncensoredAlias(internal.modelAlias)) {
+      internal.messages = applyUncensoredTransform(internal.messages);
+    }
+
     if (internal.stream) {
-      const { stream } = await executeStreamWithFallback(internal, request.auth.apiKeyId);
+      const { stream, logContext } = await executeStreamWithFallback(internal, request.auth.apiKeyId);
 
       // Check if client requested usage in stream
       const includeUsage = Boolean(
@@ -218,7 +239,18 @@ export async function chatCompletionRoutes(app: FastifyInstance): Promise<void> 
       );
       const includeReasoning = internal.gateway?.includeReasoning === true;
 
-      const filteredStream = stream.pipeThrough(createOpenAICompatibleFilter(includeUsage, includeReasoning, internal.modelAlias));
+      // Track real usage from the stream's final chunk.
+      // Use a wrapper object so TypeScript control-flow analysis doesn't narrow to `never`.
+      const usageRef: { value: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | null } = {
+        value: null
+      };
+
+      const filteredStream = stream.pipeThrough(createOpenAICompatibleFilter(
+        includeUsage,
+        includeReasoning,
+        internal.modelAlias,
+        (usage) => { usageRef.value = usage; }
+      ));
 
       reply.hijack();
       reply.raw.writeHead(200, {
@@ -243,6 +275,21 @@ export async function chatCompletionRoutes(app: FastifyInstance): Promise<void> 
           // ignore
         }
       }
+
+      // Log with REAL token counts now that the stream is complete
+      const realUsage = usageRef.value;
+      logRequest({
+        requestId: logContext.requestId,
+        apiKeyId: logContext.apiKeyId,
+        modelAlias: logContext.modelAlias,
+        provider: logContext.provider,
+        realModel: logContext.realModel,
+        status: "success",
+        latencyMs: Date.now() - logContext.started,
+        inputTokens: realUsage?.prompt_tokens,
+        outputTokens: realUsage?.completion_tokens,
+        estimatedCost: estimateCostUsd(logContext.realModel, realUsage?.prompt_tokens, realUsage?.completion_tokens)
+      });
 
       return;
     }

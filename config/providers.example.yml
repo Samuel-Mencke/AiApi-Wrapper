@@ -1,0 +1,79 @@
+# Copy this file to config/providers.yml.
+# Enable only providers you configured in .env.
+# Credentials never belong in this YAML file.
+
+providers:
+  openai:
+    type: openai
+    enabled: false
+
+  anthropic:
+    type: anthropic
+    enabled: false
+
+  gemini:
+    type: gemini
+    enabled: false
+
+  openrouter:
+    type: openrouter
+    enabled: false
+
+  z-ai:
+    type: custom
+    baseUrl: https://api.z.ai/api/coding/paas/v4
+    enabled: false
+
+  local-openai-compatible:
+    type: custom
+    baseUrl: http://host.docker.internal:11434/v1
+    enabled: false
+
+  custom-provider:
+    type: custom
+    baseUrl: https://provider.example.com/v1
+    apiKeyEnv: CUSTOM_PROVIDER_API_KEY
+    enabled: false
+
+models:
+  openai-default:
+    provider: openai
+    model: gpt-4.1-mini
+    enabled: false
+
+  anthropic-default:
+    provider: anthropic
+    model: claude-sonnet-4-5
+    enabled: false
+
+  gemini-default:
+    provider: gemini
+    model: gemini-2.5-flash
+    enabled: false
+
+  openrouter-default:
+    provider: openrouter
+    model: qwen/qwen3-coder
+    enabled: false
+
+  glm-default:
+    provider: z-ai
+    model: glm-4.5
+    enabled: false
+
+  local-default:
+    provider: local-openai-compatible
+    model: llama-local
+    context_length: 8192
+    max_output_tokens: 2048
+    enabled: false
+
+  routed-example:
+    provider: openai
+    model: gpt-4.1-mini
+    enabled: false
+    fallback:
+      - provider: gemini
+        model: gemini-2.5-flash
+      - provider: openrouter
+        model: qwen/qwen3-coder

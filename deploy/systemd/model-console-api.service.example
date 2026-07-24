@@ -1,0 +1,28 @@
+[Unit]
+Description=Unified Model API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/USER/model-console
+EnvironmentFile=/home/USER/model-console/.env
+Environment=NODE_ENV=production
+Environment=HOST=127.0.0.1
+Environment=PORT=18789
+Environment=DATABASE_URL=file:/home/USER/model-console/data/gateway.db
+Environment=UPLOAD_DIR=/home/USER/model-console/data/uploads
+Environment=CONFIG_PATH=config/providers.yml
+UnsetEnvironment=NODE_OPTIONS
+ExecStart=/usr/bin/env -u NODE_OPTIONS /usr/bin/node /home/USER/model-console/apps/api/dist/server.js
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/home/USER/model-console/data
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

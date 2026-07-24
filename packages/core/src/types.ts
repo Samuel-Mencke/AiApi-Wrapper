@@ -52,8 +52,10 @@ export interface ModelRouteConfig extends ModelRouteTarget {
 
 export interface ProviderConfig {
   name: string;
-  type: "openai" | "openrouter" | "gemini" | "anthropic" | "custom";
+  type: "openai" | "openrouter" | "gemini" | "anthropic" | "custom" | "chatgpt-web";
   baseUrl?: string;
+  /** Optional environment variable containing the provider credential. */
+  apiKeyEnv?: string;
   enabled: boolean;
 }
 

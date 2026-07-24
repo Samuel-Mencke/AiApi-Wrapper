@@ -5,7 +5,7 @@ import { z } from "zod";
 import fs from "node:fs";
 import path from "node:path";
 import { db, sqlite } from "../db/client.js";
-import { chatMessages, chatThreads } from "../db/schema.js";
+import { chatThreads } from "../db/schema.js";
 import { env } from "../env.js";
 import { requireAdminAuth } from "../middleware/auth.js";
 import { createChatRunStream, getThreadPayload, getActivePath } from "../chat/orchestrator.js";
@@ -123,7 +123,7 @@ export async function adminChatRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // Delete a single message (and optionally its children)
-  app.delete("/admin/chat/messages/:id", { preHandler: requireAdminAuth }, async (request, reply) => {
+  app.delete("/admin/chat/messages/:id", { preHandler: requireAdminAuth }, async (request) => {
     const params = z.object({ id: z.string() }).parse(request.params);
     const body = z.object({ cascade: z.boolean().optional() }).optional().parse(request.body);
     // Collect message + descendants if cascade

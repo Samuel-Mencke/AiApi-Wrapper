@@ -1,11 +1,11 @@
 import { z } from "zod";
-import type { InternalChatRequest } from "@ai-gateway/core";
+import type { InternalChatRequest } from "@model-console/core";
 
 export const openAiChatRequestSchema = z.object({
   model: z.string().min(1),
   messages: z.array(
     z.object({
-      role: z.enum(["system", "user", "assistant", "tool"]),
+      role: z.enum(["system", "developer", "user", "assistant", "tool"]),
       content: z.union([z.string(), z.array(z.record(z.unknown())), z.null()]),
       name: z.string().optional(),
       tool_call_id: z.string().optional(),
@@ -39,7 +39,7 @@ export function normalizeRequest(input: unknown): InternalChatRequest {
   return {
     modelAlias: parsed.model,
     messages: parsed.messages.map((message) => ({
-      role: message.role,
+      role: message.role === "developer" ? "system" : message.role,
       content: message.content,
       name: message.name,
       toolCallId: message.tool_call_id,

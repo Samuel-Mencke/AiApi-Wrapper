@@ -2,7 +2,6 @@ import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import fastifyStatic from "@fastify/static";
 import Fastify from "fastify";
-import path from "node:path";
 import fs from "node:fs";
 import { migrate } from "./db/client.js";
 import { env } from "./env.js";
@@ -21,6 +20,8 @@ import { adminModelRoutes } from "./routes/admin-models.js";
 import { adminProviderRoutes } from "./routes/admin-providers.js";
 import { adminStatsRoutes } from "./routes/admin-stats.js";
 import { adminChatRoutes } from "./routes/admin-chat.js";
+import { audioTranscriptionRoutes } from "./routes/audio-transcriptions.js";
+import { discoveryRoutes } from "./routes/discovery.js";
 import { syncConfigToDatabase } from "./config/providers.js";
 import { ensureInternalChatApiKey } from "./chat/internal-api-key.js";
 
@@ -37,7 +38,13 @@ const app = Fastify({
 app.setErrorHandler(errorHandler);
 
 await app.register(cors, {
-  origin: true,
+  origin(origin, callback) {
+    if (!origin || env.corsOrigins.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+    callback(new Error(`Origin not allowed: ${origin}`), false);
+  },
   credentials: true
 });
 // Multipart support for file uploads
@@ -45,7 +52,7 @@ await app.register(multipart, {
   limits: { fileSize: 15 * 1024 * 1024 } // 15 MB
 });
 // Static file serving for uploaded attachments
-const uploadRoot = path.resolve(env.root, "data", "uploads");
+const uploadRoot = env.uploadPath;
 fs.mkdirSync(uploadRoot, { recursive: true });
 await app.register(fastifyStatic, {
   root: uploadRoot,
@@ -69,6 +76,8 @@ await app.register(chatCompletionRoutes);
 await app.register(responseRoutes);
 await app.register(adminStatsRoutes);
 await app.register(adminChatRoutes);
+await app.register(audioTranscriptionRoutes);
+await app.register(discoveryRoutes);
 await app.register(adminProviderRoutes);
 await app.register(adminModelRoutes);
 await app.register(adminApiKeyRoutes);

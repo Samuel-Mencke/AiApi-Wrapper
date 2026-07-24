@@ -1,5 +1,5 @@
 {
-  "name": "ai-gateway",
+  "name": "model-console",
   "private": true,
   "version": "0.1.0",
   "packageManager": "pnpm@9.15.4",
@@ -7,17 +7,21 @@
     "node": ">=22 <25"
   },
   "scripts": {
-    "dev": "pnpm --parallel --filter @ai-gateway/api --filter @ai-gateway/web dev",
+    "dev": "pnpm --parallel --filter @model-console/api --filter @model-console/web dev",
     "build": "pnpm -r build",
-    "typecheck": "pnpm --filter @ai-gateway/core build && pnpm -r --filter ./apps/* typecheck",
+    "typecheck": "pnpm --filter @model-console/core build && pnpm -r --filter './apps/*' typecheck",
     "lint": "pnpm -r lint",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "check:secrets": "node scripts/check-secrets.mjs",
+    "admin:hash-password": "node scripts/hash-password.mjs",
+    "check": "pnpm check:secrets && pnpm typecheck && pnpm lint && pnpm build"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.19.1",
     "@typescript-eslint/parser": "^8.19.1",
     "eslint": "^9.17.0",
     "eslint-config-next": "^15.1.3",
+    "eslint-plugin-react-hooks": "5.2.0",
     "prettier": "^3.4.2",
     "typescript": "^5.7.2"
   }

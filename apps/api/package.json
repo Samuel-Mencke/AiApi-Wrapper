@@ -1,5 +1,5 @@
 {
-  "name": "@ai-gateway/api",
+  "name": "@model-console/api",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -11,7 +11,7 @@
     "lint": "eslint src --ext .ts"
   },
   "dependencies": {
-    "@ai-gateway/core": "workspace:*",
+    "@model-console/core": "workspace:*",
     "@fastify/cors": "^10.0.2",
     "@fastify/multipart": "^10.0.0",
     "@fastify/rate-limit": "^10.2.2",

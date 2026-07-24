@@ -4,15 +4,11 @@ import { Inter } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
 
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-  display: "swap"
-});
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "AI Gateway",
-  description: "Self-hosted AI API gateway — unified chat, routing & analytics"
+  title: "Model Console",
+  description: "Self-hosted model API — unified chat, routing and analytics"
 };
 
 export const viewport: Viewport = {
@@ -20,7 +16,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: "cover",
-  themeColor: "#1a1a19"
+  themeColor: "#0a0a0a"
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

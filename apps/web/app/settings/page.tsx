@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { useTheme } from "@/components/theme-provider";
 import { BASE_THEMES, ACCENT_COLORS } from "@/lib/themes";
 import { apiFetch } from "@/lib/api";
+import { formatDate } from "@/lib/utils";
 
 interface Settings {
   publicBaseUrl: string;
@@ -97,7 +98,7 @@ function AccentSwatch({ accent, active, onSelect }: {
           <Check className="absolute inset-0 m-auto h-4 w-4 text-white" />
         )}
       </div>
-      <span className="text-[10px] font-medium text-[#807a6f]">{accent.name}</span>
+      <span className="text-[10px] font-medium text-[var(--text-muted)]">{accent.name}</span>
     </button>
   );
 }
@@ -117,16 +118,16 @@ export default function SettingsPage() {
     <PageShell>
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-semibold text-[#ece9e4]">Settings</h1>
-          <p className="mt-1 text-sm text-[#807a6f]">Appearance, runtime config and environment health.</p>
+          <h1 className="text-2xl font-semibold text-[var(--text-primary)]">Settings</h1>
+          <p className="mt-1 text-sm text-[var(--text-muted)]">Appearance, runtime config and environment health.</p>
         </div>
-        {error ? <div className="text-sm text-[#e08585]">{error}</div> : null}
+        {error ? <div className="text-sm text-[var(--danger)]">{error}</div> : null}
 
         {/* Base Theme */}
         <Card>
           <CardHeader>
             <CardTitle>Base Theme</CardTitle>
-            <p className="text-sm text-[#807a6f]">Background, surfaces and text colors.</p>
+            <p className="text-sm text-[var(--text-muted)]">Background, surfaces and text colors.</p>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
@@ -146,7 +147,7 @@ export default function SettingsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Accent Color</CardTitle>
-            <p className="text-sm text-[#807a6f]">Highlights, buttons, links and active states.</p>
+            <p className="text-sm text-[var(--text-muted)]">Highlights, buttons, links and active states.</p>
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2">
@@ -190,7 +191,7 @@ export default function SettingsPage() {
                 </tbody>
               </Table>
             ) : (
-              <div className="text-sm text-[#807a6f]">Loading environment...</div>
+              <div className="text-sm text-[var(--text-muted)]">Loading environment...</div>
             )}
           </CardContent>
         </Card>
@@ -205,32 +206,32 @@ export default function SettingsPage() {
                   <tbody>
                     <tr><Th>Provider</Th><Td>{quota.provider}</Td></tr>
                     <tr><Th>Status</Th><Td><Badge>{quota.status}</Badge></Td></tr>
-                    <tr><Th>Exact reset from API</Th><Td>{quota.exactProviderResetAt ?? "Not exposed by provider API"}</Td></tr>
-                    <tr><Th>Estimated 5h reset</Th><Td>{quota.estimatedFiveHourResetAt ?? "No local quota error seen"}</Td></tr>
-                    <tr><Th>Weekly reset</Th><Td>{quota.weeklyResetAt ?? "Depends on subscription activation date"}</Td></tr>
+                    <tr><Th>Exact reset from API</Th><Td>{quota.exactProviderResetAt ? formatDate(quota.exactProviderResetAt) : "Not exposed by provider API"}</Td></tr>
+                    <tr><Th>Estimated 5h reset</Th><Td>{quota.estimatedFiveHourResetAt ? formatDate(quota.estimatedFiveHourResetAt) : "No local quota error seen"}</Td></tr>
+                    <tr><Th>Weekly reset</Th><Td>{quota.weeklyResetAt ? formatDate(quota.weeklyResetAt) : "Depends on subscription activation date"}</Td></tr>
                   </tbody>
                 </Table>
                 {quota.lastQuotaEvent ? (
-                  <div className="rounded-xl border border-white/[0.06] bg-[#1a1a19] p-4">
-                    <div className="text-sm font-medium text-[#ece9e4]">Last quota event</div>
-                    <div className="mt-2 grid grid-cols-2 gap-3 text-sm text-[#807a6f]">
-                      <div>Time: {quota.lastQuotaEvent.createdAt}</div>
+                  <div className="rounded-xl border border-white/[0.06] bg-[var(--bg-base)] p-4">
+                    <div className="text-sm font-medium text-[var(--text-primary)]">Last quota event</div>
+                    <div className="mt-2 grid grid-cols-2 gap-3 text-sm text-[var(--text-muted)]">
+                      <div>Time: {formatDate(quota.lastQuotaEvent.createdAt)}</div>
                       <div>Model: {quota.lastQuotaEvent.modelAlias}</div>
                       <div>Error: {quota.lastQuotaEvent.errorCode ?? "unknown"}</div>
-                      <div>Reset estimate: {quota.lastQuotaEvent.estimatedFiveHourResetAt ?? "unknown"}</div>
+                      <div>Reset estimate: {quota.lastQuotaEvent.estimatedFiveHourResetAt ? formatDate(quota.lastQuotaEvent.estimatedFiveHourResetAt) : "unknown"}</div>
                     </div>
-                    <div className="mt-2 text-sm text-[#807a6f]">{quota.lastQuotaEvent.errorMessage}</div>
+                    <div className="mt-2 text-sm text-[var(--text-muted)]">{quota.lastQuotaEvent.errorMessage}</div>
                   </div>
                 ) : null}
-                <div className="space-y-2 text-sm text-[#807a6f]">
+                <div className="space-y-2 text-sm text-[var(--text-muted)]">
                   {quota.notes.map((note) => <p key={note}>{note}</p>)}
-                  <a className="text-[#b8b3a8] hover:text-[#ece9e4]" href="https://z.ai/manage-apikey/subscription" target="_blank" rel="noreferrer">
+                  <a className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]" href="https://z.ai/manage-apikey/subscription" target="_blank" rel="noreferrer">
                     Open Z.ai usage statistics
                   </a>
                 </div>
               </div>
             ) : (
-              <div className="text-sm text-[#807a6f]">Loading quota status...</div>
+              <div className="text-sm text-[var(--text-muted)]">Loading quota status...</div>
             )}
           </CardContent>
         </Card>

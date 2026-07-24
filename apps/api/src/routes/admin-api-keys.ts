@@ -2,7 +2,7 @@ import { eq, ne } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { nanoid } from "nanoid";
 import { z } from "zod";
-import { GatewayError } from "@ai-gateway/core/errors";
+import { GatewayError } from "@model-console/core/errors";
 import { db } from "../db/client.js";
 import { apiKeys } from "../db/schema.js";
 import { hashApiKey, requireAdminAuth } from "../middleware/auth.js";

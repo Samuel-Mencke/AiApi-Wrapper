@@ -47,6 +47,8 @@ function readRootEnv() {
 }
 
 function providerHasKey(providerName: string, providerType: string | undefined, values: Record<string, string>) {
+  // chatgpt-web is always a local service (chat2api proxy), no env key needed
+  if (providerName === "chatgpt-web" || providerType === "chatgpt-web") return true;
   const keyByProvider: Record<string, string> = {
     openai: "OPENAI_API_KEY",
     openrouter: "OPENROUTER_API_KEY",

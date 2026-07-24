@@ -1,8 +1,8 @@
-import { eq } from "drizzle-orm";
-import type { ModelRouteConfig, ModelRouteTarget, ProviderConfig } from "@ai-gateway/core";
-import { GatewayError } from "@ai-gateway/core/errors";
+import type { ModelRouteConfig, ModelRouteTarget, ProviderConfig } from "@model-console/core";
+import { GatewayError } from "@model-console/core/errors";
 import { db } from "../db/client.js";
 import { modelRoutes, providers } from "../db/schema.js";
+import { isUncensoredAlias, stripUncensoredSuffix } from "../middleware/uncensored.js";
 
 export interface ResolvedModelRoute {
   alias: string;
@@ -54,9 +54,13 @@ function loadProviderConfigCache(): Map<string, ProviderConfig> {
 
 export function resolveModel(alias: string): ResolvedModelRoute {
   const cache = loadModelRouteCache();
-  const route = cache.get(alias);
+
+  // Auto-resolve uncensored aliases (e.g. "glm5.2-u" → "glm5.2")
+  const baseAlias = isUncensoredAlias(alias) ? stripUncensoredSuffix(alias) : alias;
+
+  const route = cache.get(baseAlias);
   if (!route) {
-    throw new GatewayError(`Model alias '${alias}' is not configured`, {
+    throw new GatewayError(`Model alias '${baseAlias}' is not configured`, {
       code: "model_not_found",
       statusCode: 404
     });

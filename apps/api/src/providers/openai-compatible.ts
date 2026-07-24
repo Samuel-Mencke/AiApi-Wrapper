@@ -1,12 +1,11 @@
-import { GatewayError, isRetryableStatus } from "@ai-gateway/core/errors";
-import type { InternalChatRequest, ModelRouteTarget, ProviderConfig, ProviderResponse } from "@ai-gateway/core";
+import { GatewayError, isRetryableStatus } from "@model-console/core/errors";
+import type { InternalChatRequest, ModelRouteTarget, ProviderConfig, ProviderResponse } from "@model-console/core";
 import { getProviderApiKey } from "../config/providers.js";
 import type { ProviderAdapter } from "./types.js";
 
 // ── Global HTTP connection pool with Keep-Alive ──
 // undici is bundled with Node 18+ and powers the global fetch().
 // We configure keep-alive to avoid TCP+TLS handshake on every provider request.
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 import undici from "undici";
 undici.setGlobalDispatcher(
   new undici.Agent({
@@ -47,7 +46,7 @@ function headers(config: ProviderConfig): HeadersInit {
   }
   if (config.name === "openrouter") {
     value["HTTP-Referer"] = "http://localhost";
-    value["X-Title"] = "ai-gateway";
+    value["X-Title"] = "model-console";
   }
   return value;
 }
@@ -62,11 +61,14 @@ function providerNetworkError(error: unknown): GatewayError {
   });
 }
 
-function body(request: InternalChatRequest, target: ModelRouteTarget, stream: boolean): Record<string, unknown> {
+function body(request: InternalChatRequest, target: ModelRouteTarget, config: ProviderConfig, stream: boolean): Record<string, unknown> {
   const result: Record<string, unknown> = {
     model: target.model,
     messages: request.messages.map((message) => ({
-      role: message.role,
+      // The local ChatGPT OAuth proxy accepts the classic Chat Completions roles
+      // but rejects the newer OpenAI `developer` role. Preserve its priority by
+      // converting it to a system message only for this compatibility provider.
+      role: config.name === "openai-oauth" && String(message.role) === "developer" ? "system" : message.role,
       content: message.content,
       name: message.name,
       tool_call_id: message.toolCallId,
@@ -124,7 +126,7 @@ export function createOpenAiCompatibleAdapter(name: string): ProviderAdapter {
       const response = await fetch(url, {
         method: "POST",
         headers: headers(config),
-        body: JSON.stringify(body(request, target, false)),
+        body: JSON.stringify(body(request, target, config, false)),
         signal: AbortSignal.timeout(60_000)
       }).catch((error: unknown) => {
         throw providerNetworkError(error);
@@ -163,8 +165,8 @@ export function createOpenAiCompatibleAdapter(name: string): ProviderAdapter {
       const response = await fetch(url, {
         method: "POST",
         headers: headers(config),
-        body: JSON.stringify(body(request, target, true)),
-        signal: AbortSignal.timeout(60_000)
+        body: JSON.stringify(body(request, target, config, true)),
+        signal: AbortSignal.timeout(300_000)
       }).catch((error: unknown) => {
         throw providerNetworkError(error);
       });

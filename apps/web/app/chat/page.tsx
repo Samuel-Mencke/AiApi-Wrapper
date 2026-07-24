@@ -1,8 +1,6 @@
-import ChatPageClient from "./page-client";
-import { getConfigChatModels } from "@/lib/config-models";
+import { redirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
-
-export default function ChatPage() {
-  return <ChatPageClient initialModels={getConfigChatModels()} />;
+export default function ChatRedirectPage() {
+  const chatUrl = process.env.NEXT_PUBLIC_CHAT_URL?.trim();
+  redirect(chatUrl || "/dashboard");
 }

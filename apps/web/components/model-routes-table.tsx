@@ -185,7 +185,7 @@ export function ModelRoutesTable({
                 <Td>
                   {editing ? (
                     <select
-                      className="h-8 min-w-36 rounded-lg border border-white/[0.07] bg-[#1f1e1c] px-2 text-sm text-[#ece9e4] outline-none"
+                      className="h-8 min-w-36 rounded-lg border border-white/[0.07] bg-[var(--bg-input)] px-2 text-sm text-[var(--text-primary)] outline-none"
                       value={draft.provider}
                       onChange={(event) => setDraft((value) => ({ ...value, provider: event.target.value }))}
                     >
@@ -205,14 +205,14 @@ export function ModelRoutesTable({
                   ) : row.realModel}
                 </Td>
                 <Td>
-                  <Badge className={row.enabled ? "border-[#7aab5e]/25 bg-[#7aab5e]/10 text-[#9bc480]" : ""}>
+                  <Badge className={row.enabled ? "border-[var(--accent)]/25 bg-[var(--accent)]/10 text-[var(--accent-text)]" : ""}>
                     {row.enabled ? "Enabled" : "Disabled"}
                   </Badge>
                 </Td>
                 <Td>
                   {editing ? (
                     <textarea
-                      className="min-h-20 w-64 rounded-lg border border-white/[0.07] bg-[#1f1e1c] px-3 py-2 text-sm text-[#ece9e4] outline-none transition placeholder:text-[#5a554d] focus:border-white/[0.18]"
+                      className="min-h-20 w-64 rounded-lg border border-white/[0.07] bg-[var(--bg-input)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-white/[0.18]"
                       placeholder="provider/model per line"
                       value={draft.fallbackText}
                       onChange={(event) => setDraft((value) => ({ ...value, fallbackText: event.target.value }))}
@@ -222,7 +222,7 @@ export function ModelRoutesTable({
                   )}
                 </Td>
                 <Td>
-                  <div className="whitespace-nowrap text-xs text-[#807a6f]">
+                  <div className="whitespace-nowrap text-xs text-[var(--text-muted)]">
                     {row.avgLatencyMs ? `${row.avgLatencyMs}ms` : "No traffic"} · {Math.round(row.errorRate * 100)}% err
                   </div>
                 </Td>
@@ -260,7 +260,7 @@ export function ModelRoutesTable({
           })}
           {!data.length ? (
             <tr>
-              <Td colSpan={8} className="py-8 text-center text-[#807a6f]">No model routes found.</Td>
+              <Td colSpan={8} className="py-8 text-center text-[var(--text-muted)]">No model routes found.</Td>
             </tr>
           ) : null}
         </tbody>

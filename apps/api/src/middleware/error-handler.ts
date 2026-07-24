@@ -1,5 +1,5 @@
 import type { FastifyError, FastifyReply, FastifyRequest } from "fastify";
-import { GatewayError } from "@ai-gateway/core/errors";
+import { GatewayError } from "@model-console/core/errors";
 import { ZodError } from "zod";
 
 /**

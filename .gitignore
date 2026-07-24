@@ -1,18 +1,45 @@
-node_modules
-dist
-.next
+# Dependencies and build output
+node_modules/
+dist/
+.next/
+coverage/
+.turbo/
+*.tsbuildinfo
+.corepack/
+.npm-cache/
+.pnpm-store/
+.runtime/
+
+# Secrets and local runtime configuration
 .env
 .env.*
 !.env.example
-gateway.db
+/config/providers.yml
+*.pem
+*.key
+*.p12
+*.pfx
+*.credentials.json
+
+# Runtime data
+data/
 *.db
 *.db-shm
 *.db-wal
 *.db-journal
-coverage
-.turbo
-*.tsbuildinfo
-.corepack
-.npm-cache
-.pnpm-store
-.runtime
+
+# Local backups and generated patches
+.ui-backups/
+*.bak
+*.bak-*
+*.backup
+*.backup-*
+*.backup.*
+*.before
+*.patch
+
+# Editor and operating-system files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

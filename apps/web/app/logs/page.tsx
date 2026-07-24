@@ -20,10 +20,10 @@ export default function LogsPage() {
     <PageShell>
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-semibold text-[#ece9e4]">Logs</h1>
-          <p className="mt-1 text-sm text-[#807a6f]">Metadata-only request history. Prompts and responses are not displayed.</p>
+          <h1 className="text-2xl font-semibold text-[var(--text-primary)]">Logs</h1>
+          <p className="mt-1 text-sm text-[var(--text-muted)]">Metadata-only request history. Prompts and responses are not displayed.</p>
         </div>
-        {error ? <div className="text-sm text-[#e08585]">{error}</div> : null}
+        {error ? <div className="text-sm text-[var(--danger)]">{error}</div> : null}
         <Card>
           <CardContent>
             <LogsTable data={logs} />

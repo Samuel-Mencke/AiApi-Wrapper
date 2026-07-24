@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { GatewayError } from "@ai-gateway/core/errors";
+import { GatewayError } from "@model-console/core/errors";
 import { requireApiAuth } from "../middleware/auth.js";
 import { listModelAliases } from "../router/resolve-model.js";
 import { CODEX_BASE_INSTRUCTIONS } from "../responses/codex-base-instructions.js";
@@ -169,12 +169,23 @@ export async function modelRoutes(
       }
 
       /*
-       * Preserve the standard OpenAI-compatible response
-       * for all other clients.
+       * Preserve the standard OpenAI-compatible response for all other
+       * clients. Every base model gets exactly one -u variant.
        */
+      const allModels = [...enabledModels];
+      const skipAutoVariants = new Set(["local-test"]);
+      for (const model of enabledModels) {
+        if (skipAutoVariants.has(model.alias)) continue;
+        allModels.push({
+          ...model,
+          alias: `${model.alias}-u`,
+          createdAt: model.createdAt
+        });
+      }
+
       return {
         object: "list",
-        data: enabledModels.map(toOpenAiModel)
+        data: allModels.map(toOpenAiModel)
       };
     }
   );
@@ -187,10 +198,12 @@ export async function modelRoutes(
         model: z.string().min(1)
       }).parse(request.params);
 
+      const requestedAlias = params.model;
+      const baseAlias = requestedAlias.endsWith("-u")
+        ? requestedAlias.slice(0, -2)
+        : requestedAlias;
       const model = listModelAliases().find(
-        (item) =>
-          item.enabled
-          && item.alias === params.model
+        (item) => item.enabled && item.alias === baseAlias
       );
 
       if (!model) {
@@ -204,7 +217,10 @@ export async function modelRoutes(
         );
       }
 
-      return toOpenAiModel(model);
+      return toOpenAiModel({
+        ...model,
+        alias: requestedAlias
+      });
     }
   );
 }

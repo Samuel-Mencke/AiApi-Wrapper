@@ -1,7 +1,8 @@
-import { estimateCostUsd } from "@ai-gateway/core/pricing";
-import type { InternalChatRequest, ProviderResponse } from "@ai-gateway/core";
-import { GatewayError, toGatewayError } from "@ai-gateway/core/errors";
+import { estimateCostUsd } from "@model-console/core/pricing";
+import type { InternalChatRequest, ProviderResponse } from "@model-console/core";
+import { GatewayError, toGatewayError } from "@model-console/core/errors";
 import { anthropicAdapter } from "../providers/anthropic.js";
+import { chatgptWebAdapter } from "../providers/chatgpt-web.js";
 import { geminiAdapter } from "../providers/gemini.js";
 import { createOpenAiCompatibleAdapter } from "../providers/openai-compatible.js";
 import { openAiAdapter } from "../providers/openai.js";
@@ -16,6 +17,7 @@ const adapters: Record<string, ProviderAdapter> = {
   openrouter: openRouterAdapter,
   gemini: geminiAdapter,
   anthropic: anthropicAdapter,
+  "chatgpt-web": chatgptWebAdapter,
   custom: createOpenAiCompatibleAdapter("custom")
 };
 
@@ -92,10 +94,24 @@ export async function executeWithFallback(
   throw lastError ?? new GatewayError("All provider routes failed", { code: "all_routes_failed", statusCode: 502 });
 }
 
+/**
+ * Context returned alongside a streaming response so the caller can log
+ * the request with REAL token counts after the stream finishes.
+ * Usage data arrives in the final SSE chunk — long after we return the stream.
+ */
+export interface StreamLogContext {
+  requestId?: string;
+  apiKeyId: string | null;
+  modelAlias: string;
+  provider: string;
+  realModel: string;
+  started: number;
+}
+
 export async function executeStreamWithFallback(
   request: InternalChatRequest,
   apiKeyId: string | null,
-): Promise<{ stream: ReadableStream<Uint8Array>; provider: string; realModel: string; started: number }> {
+): Promise<{ stream: ReadableStream<Uint8Array>; provider: string; realModel: string; started: number; logContext: StreamLogContext }> {
   const route = resolveModel(request.modelAlias);
   let lastError: GatewayError | null = null;
 
@@ -115,16 +131,23 @@ export async function executeStreamWithFallback(
       }
 
       const stream = await adapter.stream(request, target, providerConfig);
-      logRequest({
-        requestId: request.requestId,
-        apiKeyId,
-        modelAlias: request.modelAlias,
+      // NOTE: Do NOT log success here — usage data is not available until the stream ends.
+      // The caller is responsible for calling logRequest with real token counts
+      // after consuming the stream (via StreamLogContext).
+      return {
+        stream,
         provider: target.provider,
         realModel: target.model,
-        status: "success",
-        latencyMs: Date.now() - started
-      });
-      return { stream, provider: target.provider, realModel: target.model, started };
+        started,
+        logContext: {
+          requestId: request.requestId,
+          apiKeyId,
+          modelAlias: request.modelAlias,
+          provider: target.provider,
+          realModel: target.model,
+          started,
+        },
+      };
     } catch (error) {
       const gatewayError = toGatewayError(error);
       lastError = gatewayError;

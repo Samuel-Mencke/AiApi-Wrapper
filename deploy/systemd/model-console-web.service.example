@@ -1,0 +1,26 @@
+[Unit]
+Description=Model Console Web
+After=network-online.target model-console-api.service
+Wants=network-online.target
+Requires=model-console-api.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/USER/model-console
+EnvironmentFile=/home/USER/model-console/.env
+Environment=NODE_ENV=production
+Environment=HOSTNAME=127.0.0.1
+Environment=PORT=3000
+Environment=API_BACKEND_URL=http://127.0.0.1:18789
+UnsetEnvironment=NODE_OPTIONS
+ExecStart=/usr/bin/env -u NODE_OPTIONS /home/USER/.local/share/pnpm/pnpm --filter @model-console/web start
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

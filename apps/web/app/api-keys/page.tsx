@@ -58,24 +58,24 @@ export default function ApiKeysPage() {
     <PageShell>
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-semibold text-[#ece9e4]">API Keys</h1>
-          <p className="mt-1 text-sm text-[#807a6f]">Gateway keys are hashed at rest and revealed only on creation.</p>
+          <h1 className="text-2xl font-semibold text-[var(--text-primary)]">API Keys</h1>
+          <p className="mt-1 text-sm text-[var(--text-muted)]">Service API keys are hashed at rest and revealed only on creation.</p>
         </div>
-        {error ? <div className="text-sm text-[#e08585]">{error}</div> : null}
+        {error ? <div className="text-sm text-[var(--danger)]">{error}</div> : null}
         {newKey ? (
           <Card>
             <CardContent>
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-sm font-medium text-[#ece9e4]">New key</div>
-                  <div className="mt-1 text-xs text-[#807a6f]">Copy it now. It will not be shown again.</div>
+                  <div className="text-sm font-medium text-[var(--text-primary)]">New key</div>
+                  <div className="mt-1 text-xs text-[var(--text-muted)]">Copy it now. It will not be shown again.</div>
                 </div>
                 <Button variant="secondary" onClick={copyNewKey} type="button">
                   {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                   {copied ? "Copied" : "Copy"}
                 </Button>
               </div>
-              <div className="mt-3 break-all rounded-lg border border-white/[0.06] bg-[#1a1a19] p-3 font-mono text-sm text-[#ece9e4]">{newKey}</div>
+              <div className="mt-3 break-all rounded-lg border border-white/[0.06] bg-[var(--bg-base)] p-3 font-mono text-sm text-[var(--text-primary)]">{newKey}</div>
             </CardContent>
           </Card>
         ) : null}

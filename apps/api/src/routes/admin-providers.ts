@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { nanoid } from "nanoid";
 import { z } from "zod";
-import { GatewayError } from "@ai-gateway/core/errors";
+import { GatewayError } from "@model-console/core/errors";
 import { db } from "../db/client.js";
 import { modelRoutes, providers, quotaSettings } from "../db/schema.js";
 import { requireAdminAuth } from "../middleware/auth.js";
@@ -88,16 +88,24 @@ export async function adminProviderRoutes(app: FastifyInstance): Promise<void> {
     if (!adapter) {
       return { ok: false, message: "No adapter registered" };
     }
+    const configuredRoute = body.modelAlias
+      ? db.select().from(modelRoutes).where(eq(modelRoutes.alias, body.modelAlias)).get()
+      : db.select().from(modelRoutes).where(eq(modelRoutes.provider, provider.name)).get();
+    if (!configuredRoute) {
+      return { ok: false, message: "No enabled model route configured for this provider" };
+    }
+    const modelAlias = configuredRoute.alias;
+    const realModel = configuredRoute.realModel;
     const start = Date.now();
     try {
       const result = await adapter.complete(
         {
-          modelAlias: body.modelAlias ?? "glm-5-turbo",
+          modelAlias,
           messages: [{ role: "user", content: "Say 'test ok' in exactly those two words." }],
           maxTokens: 10,
           stream: false
         },
-        { provider: provider.name, model: body.modelAlias ?? "glm-5-turbo" },
+        { provider: provider.name, model: realModel },
         {
           name: provider.name,
           type: provider.type as "openai" | "openrouter" | "gemini" | "anthropic" | "custom",

@@ -3,90 +3,78 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, BookOpen, KeyRound, MessageSquare, PanelLeftClose, PanelLeftOpen, Route, ServerCog, Settings, X } from "lucide-react";
+import {
+  AudioLines, BarChart3, BookOpen, ExternalLink, KeyRound,
+  MessageSquare, PanelLeftClose, PanelLeftOpen, Route, ServerCog,
+  Settings, X
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const groups = [
-  {
-    label: "Main",
-    items: [
-      { href: "/chat", label: "Chat", icon: MessageSquare },
-      { href: "/dashboard", label: "Dashboard", icon: BarChart3 }
-    ]
-  },
-  {
-    label: "Gateway",
-    items: [
-      { href: "/providers", label: "Providers", icon: ServerCog },
-      { href: "/models", label: "Models", icon: Route },
-      { href: "/api-keys", label: "API Keys", icon: KeyRound },
-      { href: "/logs", label: "Logs", icon: BarChart3 }
-    ]
-  },
-  {
-    label: "System",
-    items: [
-      { href: "/docs", label: "Docs", icon: BookOpen },
-      { href: "/settings", label: "Settings", icon: Settings }
-    ]
-  }
+type NavItem = { href: string; label: string; icon: LucideIcon; external?: boolean };
+type NavGroup = { label: string; items: NavItem[] };
+
+const chatUrl = process.env.NEXT_PUBLIC_CHAT_URL?.trim();
+
+const groups: NavGroup[] = [
+  { label: "Workspace", items: [
+    { href: "/dashboard", label: "Overview", icon: BarChart3 },
+    ...(chatUrl ? [{ href: chatUrl, label: "Chat", icon: MessageSquare, external: true }] : []),
+    { href: "/transcription", label: "Transcription", icon: AudioLines }
+  ]},
+  { label: "Routing", items: [
+    { href: "/providers", label: "Providers", icon: ServerCog },
+    { href: "/models",    label: "Models",    icon: Route },
+    { href: "/api-keys",  label: "API Keys",  icon: KeyRound },
+    { href: "/logs",      label: "Logs",      icon: BarChart3 }
+  ]},
+  { label: "System", items: [
+    { href: "/docs",     label: "Docs",     icon: BookOpen },
+    { href: "/settings", label: "Settings", icon: Settings }
+  ]}
 ];
 
-export function AppSidebar({
-  collapsed,
-  onToggleCollapsed,
-  mobileNavOpen = false,
-  onMobileNavClose
-}: {
+type SidebarProps = {
   collapsed: boolean;
   onToggleCollapsed: () => void;
   mobileNavOpen?: boolean;
   onMobileNavClose?: () => void;
-}) {
+};
+
+export function AppSidebar({ collapsed, onToggleCollapsed, mobileNavOpen = false, onMobileNavClose }: SidebarProps) {
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    onMobileNavClose?.();
-  }, [pathname, onMobileNavClose]);
+  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => { onMobileNavClose?.(); }, [pathname, onMobileNavClose]);
 
   return (
     <>
       {/* Desktop sidebar */}
-      <aside
-        className={cn(
-          "fixed inset-y-0 left-0 z-20 hidden border-r border-white/[0.05] bg-[#1a1a19] md:block",
-          mounted && "transition-[width] duration-200 ease-out",
-          collapsed ? "w-[60px]" : "w-56"
-        )}
-      >
+      <aside className={cn(
+        "fixed bottom-0 left-0 top-0 z-20 hidden w-[220px] overflow-y-auto border-r border-hair bg-panel md:block",
+        mounted && "transition-[width] duration-200 ease-out",
+        collapsed && "w-[56px]"
+      )}>
         <SidebarContent collapsed={collapsed} onToggleCollapsed={onToggleCollapsed} pathname={pathname} />
       </aside>
 
-      {/* Mobile drawer */}
-      {mobileNavOpen && (
-        <div
+      {/* Mobile overlay */}
+      {mobileNavOpen ? (
+        <button type="button" aria-label="Close navigation"
           className="fixed inset-0 z-[60] bg-black/50 md:hidden"
           onClick={onMobileNavClose}
         />
-      )}
-      <aside
-        className={cn(
-          "fixed inset-y-0 left-0 z-[61] w-72 max-w-[85vw] border-r border-white/[0.05] bg-[#1a1a19] transition-transform duration-200 ease-out md:hidden",
-          mobileNavOpen ? "translate-x-0" : "-translate-x-full"
-        )}
-      >
+      ) : null}
+
+      {/* Mobile drawer */}
+      <aside className={cn(
+        "fixed bottom-0 left-0 top-0 z-[61] w-72 max-w-[86vw] overflow-y-auto border-r border-hair bg-panel transition-transform duration-200 md:hidden",
+        mobileNavOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
         <div className="flex h-14 items-center justify-between px-4">
-          <span className="text-sm font-medium text-[#ece9e4]">Navigation</span>
-          <button
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-[#807a6f] transition hover:bg-white/[0.05] hover:text-[#ece9e4]"
-            onClick={onMobileNavClose}
-            aria-label="Close menu"
-          >
+          <span className="text-[13px] font-semibold tracking-tight text-ink">Navigation</span>
+          <button type="button" className="grid h-8 w-8 place-items-center rounded-lg text-faint transition hover:bg-hover hover:text-ink"
+            onClick={onMobileNavClose} aria-label="Close navigation">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -96,12 +84,7 @@ export function AppSidebar({
   );
 }
 
-function SidebarContent({
-  collapsed,
-  onToggleCollapsed,
-  pathname,
-  forceShowLabels = false
-}: {
+function SidebarContent({ collapsed, onToggleCollapsed, pathname, forceShowLabels = false }: {
   collapsed: boolean;
   onToggleCollapsed: () => void;
   pathname: string;
@@ -109,75 +92,56 @@ function SidebarContent({
 }) {
   return (
     <div className="flex h-full flex-col">
-      {/* Logo header (desktop only) */}
-      {!forceShowLabels && (
-        <div className={cn("flex h-14 items-center px-3", collapsed ? "justify-center" : "justify-between")}>
-          <div className={cn("flex items-center gap-2.5", collapsed && "justify-center")}>
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#7aab5e]">
-              <span className="text-xs font-bold text-[#1a1a19]">AI</span>
-            </div>
-            {!collapsed && (
-              <span className="text-sm font-medium text-[#ece9e4]">Gateway</span>
-            )}
-          </div>
-          {!collapsed && (
-            <button
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[#807a6f] transition hover:bg-white/[0.05] hover:text-[#ece9e4]"
-              onClick={onToggleCollapsed}
-              title="Collapse menu"
-            >
-              <PanelLeftClose className="h-3.5 w-3.5" />
-            </button>
-          )}
-          {collapsed && (
-            <button
-              className="absolute -right-3 top-4 flex h-6 w-6 items-center justify-center rounded-full border border-white/[0.06] bg-[#232220] text-[#807a6f] transition hover:text-[#ece9e4]"
-              onClick={onToggleCollapsed}
-              title="Expand menu"
-            >
-              <PanelLeftOpen className="h-3 w-3" />
-            </button>
-          )}
+      {!forceShowLabels ? (
+        <div className={cn("flex h-12 items-center px-2", collapsed ? "justify-center" : "justify-end")}>
+          <button type="button" className="grid h-8 w-8 place-items-center text-faint transition hover:bg-hover hover:text-ink"
+            onClick={onToggleCollapsed} title={collapsed ? "Expand" : "Collapse"}>
+            {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+          </button>
         </div>
-      )}
+      ) : null}
 
-      {/* Nav */}
-      <nav className={cn("flex-1 space-y-4 overflow-y-auto px-2 py-3")}>
+      {/* Navigation */}
+      <nav className="flex-1 space-y-4 overflow-y-auto px-2 py-3" aria-label="Main navigation">
         {groups.map((group) => (
           <div key={group.label} className="space-y-0.5">
             <div className={cn(
-              "px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-[#807a6f]",
+              "px-3 py-1 text-[9px] font-medium uppercase tracking-[0.12em] text-faint",
               collapsed && !forceShowLabels && "opacity-0"
             )}>
               {group.label}
             </div>
             {group.items.map((item) => {
               const Icon = item.icon;
-              const active = pathname === item.href;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  title={collapsed && !forceShowLabels ? item.label : undefined}
-                  className={cn(
-                    "flex h-9 items-center gap-3 rounded-lg px-3 text-sm transition-colors duration-150",
-                    collapsed && !forceShowLabels && "justify-center px-0",
-                    active
-                      ? "bg-[#7aab5e]/10 text-[#9bc480]"
-                      : "text-[#b8b3a8] hover:bg-white/[0.04] hover:text-[#ece9e4]"
-                  )}
-                >
-                  <Icon className={cn("h-4 w-4 shrink-0", active && "text-[#9bc480]")} />
-                  <span className={cn(
-                    "truncate",
-                    collapsed && !forceShowLabels && "hidden"
-                  )}>{item.label}</span>
-                </Link>
+              const active = !item.external && pathname === item.href;
+              const classes = cn(
+                "flex h-9 items-center gap-3 px-3 text-[13px] transition-colors",
+                collapsed && !forceShowLabels && "justify-center px-0",
+                active
+                  ? "bg-white/[0.05] text-ink font-medium"
+                  : "text-dim hover:bg-hover hover:text-ink"
               );
+              const content = (
+                <>
+                  {active && (
+                    <span className="absolute left-0 top-1/2 h-4 w-px -translate-y-1/2 bg-accent" />
+                  )}
+                  <Icon className={cn("h-4 w-4 shrink-0", active ? "text-accent" : "group-hover:text-dim")} />
+                  <span className={cn("truncate", collapsed && !forceShowLabels && "hidden")}>{item.label}</span>
+                  {item.external && !(collapsed && !forceShowLabels) ? (
+                    <ExternalLink className="ml-auto h-3 w-3 text-faint" />
+                  ) : null}
+                </>
+              );
+              return item.external
+                ? <a key={item.href} href={item.href} className={classes} title={collapsed && !forceShowLabels ? item.label : undefined}>{content}</a>
+                : <Link key={item.href} href={item.href} className={cn("relative", classes)} title={collapsed && !forceShowLabels ? item.label : undefined}>{content}</Link>;
             })}
           </div>
         ))}
       </nav>
+
+
     </div>
   );
 }

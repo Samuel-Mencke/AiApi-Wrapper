@@ -1,0 +1,19 @@
+[Unit]
+Description=Model Console verified deployment
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=USER
+Group=docker
+Environment=REPO_DIR=/home/USER/model-console
+Environment=BRANCH=main
+Environment=DEPLOY_MODE=systemd
+Environment=XDG_RUNTIME_DIR=/run/user/USER_ID
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/USER_ID/bus
+ExecStart=/home/USER/model-console/scripts/auto-deploy.sh
+ReadWritePaths=/home/USER/model-console /var/log/model-console-deploy.log /var/lock/model-console-deploy.lock
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full

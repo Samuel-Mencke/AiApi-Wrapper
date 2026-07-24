@@ -2,7 +2,7 @@ import fs from "node:fs";
 import { nanoid } from "nanoid";
 import YAML from "yaml";
 import { eq } from "drizzle-orm";
-import type { ModelRouteConfig, ModelRouteTarget, ProviderConfig } from "@ai-gateway/core";
+import type { ModelRouteConfig, ModelRouteTarget, ProviderConfig } from "@model-console/core";
 import { db } from "../db/client.js";
 import { modelRoutes, providers, quotaSettings } from "../db/schema.js";
 import { env } from "../env.js";
@@ -35,6 +35,7 @@ export function getConfiguredProviders(): ProviderConfig[] {
     name,
     type: provider.type,
     baseUrl: provider.baseUrl,
+    apiKeyEnv: provider.apiKeyEnv,
     enabled: provider.enabled ?? true
   }));
 }
@@ -57,7 +58,16 @@ export function syncConfigToDatabase(): void {
   const now = new Date().toISOString();
   for (const provider of getConfiguredProviders()) {
     const existing = db.select().from(providers).where(eq(providers.name, provider.name)).get();
-    if (!existing) {
+    if (existing) {
+      db.update(providers)
+        .set({
+          type: provider.type,
+          baseUrl: provider.baseUrl,
+          enabled: provider.enabled
+        })
+        .where(eq(providers.id, existing.id))
+        .run();
+    } else {
       db.insert(providers).values({
         id: nanoid(),
         name: provider.name,
@@ -86,7 +96,19 @@ export function syncConfigToDatabase(): void {
         .run();
       continue;
     }
-    if (!existing) {
+    if (existing) {
+      db.update(modelRoutes)
+        .set({
+          provider: route.provider,
+          realModel: route.model,
+          fallbackJson: JSON.stringify(route.fallback),
+          enabled: route.enabled,
+          contextLength: route.contextLength,
+          maxOutputTokens: route.maxOutputTokens
+        })
+        .where(eq(modelRoutes.id, existing.id))
+        .run();
+    } else {
       db.insert(modelRoutes).values({
         id: nanoid(),
         alias: route.alias,
@@ -94,7 +116,9 @@ export function syncConfigToDatabase(): void {
         realModel: route.model,
         fallbackJson: JSON.stringify(route.fallback),
         enabled: route.enabled,
-        createdAt: now
+        createdAt: now,
+        contextLength: route.contextLength,
+        maxOutputTokens: route.maxOutputTokens
       }).run();
     }
   }
@@ -148,5 +172,13 @@ export function getProviderApiKey(provider: string): string | undefined {
   if (provider === "gemini") return env.GEMINI_API_KEY;
   if (provider === "anthropic") return env.ANTHROPIC_API_KEY;
   if (provider === "z-ai") return env.ZAI_API_KEY;
-  return undefined;
+
+  const configured = readProvidersFile().providers?.[provider];
+  const explicitEnvironmentName = configured?.apiKeyEnv;
+  if (explicitEnvironmentName) {
+    return process.env[explicitEnvironmentName];
+  }
+
+  const conventionalEnvironmentName = `${provider.replace(/[^A-Za-z0-9]/g, "_").toUpperCase()}_API_KEY`;
+  return process.env[conventionalEnvironmentName];
 }

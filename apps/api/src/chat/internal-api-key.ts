@@ -15,7 +15,7 @@ export function ensureInternalChatApiKey(): boolean {
     db.insert(apiKeys).values({
       id: CHAT_API_KEY_ID,
       name: CHAT_API_KEY_NAME,
-      keyHash: hashApiKey(env.GATEWAY_MASTER_KEY),
+      keyHash: hashApiKey(env.MASTER_API_KEY),
       enabled: true,
       createdAt: now,
       lastUsedAt: null
@@ -23,10 +23,12 @@ export function ensureInternalChatApiKey(): boolean {
     return true;
   }
 
-  if (existing.name !== CHAT_API_KEY_NAME || !existing.enabled) {
+  const expectedKeyHash = hashApiKey(env.MASTER_API_KEY);
+  if (existing.name !== CHAT_API_KEY_NAME || !existing.enabled || existing.keyHash !== expectedKeyHash) {
     db.update(apiKeys)
       .set({
         name: CHAT_API_KEY_NAME,
+        keyHash: expectedKeyHash,
         enabled: true
       })
       .where(eq(apiKeys.id, CHAT_API_KEY_ID))

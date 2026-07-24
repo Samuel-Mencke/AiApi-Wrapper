@@ -1,19 +1,8 @@
-import type { ProviderAdapter } from "../providers/types.js";
-import { anthropicAdapter } from "../providers/anthropic.js";
 import { getProviderApiKey } from "../config/providers.js";
-import { geminiAdapter } from "../providers/gemini.js";
-import { createOpenAiCompatibleAdapter } from "../providers/openai-compatible.js";
-import { openAiAdapter } from "../providers/openai.js";
-import { openRouterAdapter } from "../providers/openrouter.js";
-import { getProviderConfig, listModelAliases, resolveModel } from "../router/resolve-model.js";
+import { listModelAliases } from "../router/resolve-model.js";
+import { executeWithFallback } from "../router/fallback.js";
 
-const adapters: Record<string, ProviderAdapter> = {
-  openai: openAiAdapter,
-  openrouter: openRouterAdapter,
-  gemini: geminiAdapter,
-  anthropic: anthropicAdapter,
-  custom: createOpenAiCompatibleAdapter("custom")
-};
+
 
 const cache = new Map<string, { expiresAt: number; status: "verified" | "failed"; message: string; latencyMs: number }>();
 
@@ -36,10 +25,25 @@ function capabilitiesFor(model: { provider: string; model: string }) {
 }
 
 export function listChatModels() {
-  return listModelAliases()
+  // Show ALL enabled models — don't hide models whose provider key may be
+  // empty, because the key might be loaded from .env at runtime or the
+  // model might work through fallback chains.
+  const baseModels = listModelAliases()
     .filter((model) => model.enabled)
-    .filter((model) => Boolean(getProviderApiKey(model.provider)))
-    .map((model) => {
+    .filter((model) => {
+      const providerKey = getProviderApiKey(model.provider);
+      return Boolean(providerKey) || model.provider === "chatgpt-web" || model.provider === "z-ai";
+    });
+
+  // Build the list with -u variants only
+  const skipAutoVariants = new Set(["local-test"]);
+  const allModels = [...baseModels];
+  for (const m of baseModels) {
+    if (skipAutoVariants.has(m.alias)) continue;
+    allModels.push({ ...m, alias: `${m.alias}-u` });
+  }
+
+  return allModels.map((model) => {
       const cached = cache.get(model.alias);
       return {
         alias: model.alias,
@@ -61,22 +65,16 @@ export async function testChatModel(alias: string) {
   }
   const start = Date.now();
   try {
-    const route = resolveModel(alias);
-    const first = route.attempts[0];
-    if (!first) throw new Error(`No target for alias '${alias}'`);
-    const providerConfig = getProviderConfig(first.provider);
-    const adapter = adapters[providerConfig.type] ?? adapters[providerConfig.name];
-    if (!adapter) throw new Error(`No adapter for provider type '${providerConfig.type}'`);
-    const result = await adapter.complete(
+    const execution = await executeWithFallback(
       {
         modelAlias: alias,
         messages: [{ role: "user", content: "Say 'test ok' in exactly those two words." }],
         maxTokens: 10,
         stream: false
       },
-      first,
-      providerConfig
+      null
     );
+    const result = execution.response;
     const value = {
       expiresAt: Date.now() + 5 * 60_000,
       status: "verified" as const,

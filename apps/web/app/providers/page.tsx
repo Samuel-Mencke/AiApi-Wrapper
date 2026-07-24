@@ -119,10 +119,10 @@ export default function ProvidersPage() {
     <PageShell>
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-semibold text-[#ece9e4]">Providers</h1>
-          <p className="mt-1 text-sm text-[#807a6f]">Configured provider endpoints and reachability checks.</p>
+          <h1 className="text-2xl font-semibold text-[var(--text-primary)]">Providers</h1>
+          <p className="mt-1 text-sm text-[var(--text-muted)]">Configured provider endpoints and reachability checks.</p>
         </div>
-        {error ? <div className="text-sm text-[#e08585]">{error}</div> : null}
+        {error ? <div className="text-sm text-[var(--danger)]">{error}</div> : null}
 
         <Card>
           <CardHeader><CardTitle>Add provider</CardTitle></CardHeader>
@@ -134,7 +134,7 @@ export default function ProvidersPage() {
                 onChange={(event) => setNewProvider((value) => ({ ...value, name: event.target.value }))}
               />
               <select
-                className="h-9 rounded-lg border border-white/[0.07] bg-[#1f1e1c] px-3 text-sm text-[#ece9e4] outline-none transition focus:border-white/[0.18]"
+                className="h-9 rounded-lg border border-white/[0.07] bg-[var(--bg-input)] px-3 text-sm text-[var(--text-primary)] outline-none transition focus:border-white/[0.18]"
                 value={newProvider.type}
                 onChange={(event) => setNewProvider((value) => ({ ...value, type: event.target.value }))}
               >
@@ -185,7 +185,7 @@ export default function ProvidersPage() {
             />
           ))}
           {!visibleProviders.length ? (
-            <div className="rounded-lg border border-dashed border-white/[0.08] p-8 text-center text-sm text-[#807a6f] xl:col-span-3">
+            <div className="rounded-lg border border-dashed border-white/[0.08] p-8 text-center text-sm text-[var(--text-muted)] xl:col-span-3">
               No providers found.
             </div>
           ) : null}
@@ -197,15 +197,15 @@ export default function ProvidersPage() {
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-4 xl:grid-cols-2">
             {providerQuotas.map((quota) => (
-              <div key={quota.provider} className="space-y-4 rounded-xl border border-white/[0.06] bg-[#121212] p-4">
+              <div key={quota.provider} className="space-y-4 rounded-xl border border-white/[0.06] bg-[var(--bg-base)] p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <div className="text-sm font-medium text-[#ece9e4]">{quota.provider}</div>
-                    <div className="mt-1 text-xs text-[#807a6f]">
+                    <div className="text-sm font-medium text-[var(--text-primary)]">{quota.provider}</div>
+                    <div className="mt-1 text-xs text-[var(--text-muted)]">
                       {quota.routeCount ? `${formatNumber(quota.routeCount)} model routes covered` : "Provider-level quota"}
                     </div>
                   </div>
-                  <Badge className={quota.enabled ? "border-[#7aab5e]/25 bg-[#7aab5e]/10 text-[#9bc480]" : ""}>
+                  <Badge className={quota.enabled ? "border-[var(--accent)]/25 bg-[var(--accent)]/10 text-[var(--accent-text)]" : ""}>
                     {quota.enabled ? "Quota enabled" : "Quota off"}
                   </Badge>
                 </div>

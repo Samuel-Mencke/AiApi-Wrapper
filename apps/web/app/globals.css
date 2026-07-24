@@ -1,130 +1,100 @@
 @import "tailwindcss";
 
+/* ═══════════════════════════════════════════════════════════════════════
+   DESIGN TOKENS — flat design system
+   ═══════════════════════════════════════════════════════════════════════ */
+
+@theme inline {
+  /* surfaces */
+  --color-canvas:   var(--bg-base);
+  --color-panel:    var(--bg-surface);
+  --color-elevated: var(--bg-elevated);
+  --color-input:    var(--bg-input);
+  --color-hover:    var(--bg-hover);
+
+  /* text */
+  --color-ink:    var(--text-primary);
+  --color-dim:    var(--text-secondary);
+  --color-faint:  var(--text-muted);
+
+  /* borders */
+  --color-hair:   var(--border-subtle);
+  --color-line:   var(--border-default);
+  --color-strong: var(--border-strong);
+
+  /* accent */
+  --color-accent:        var(--accent);
+  --color-accent-hover:  var(--accent-hover);
+  --color-accent-text:   var(--accent-text);
+  --color-accent-muted:  var(--accent-muted);
+  --color-accent-subtle: var(--accent-subtle);
+  --color-accent-border: var(--accent-border);
+
+  /* semantic */
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger:  var(--danger);
+  --color-info:    var(--info);
+
+  /* fonts */
+  --font-sans: var(--font-inter), Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  /* radii */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+}
+
+/* ── Default theme ── */
 :root {
   color-scheme: dark;
 
-  /* ── Claude-like warm neutral palette ── */
-  --bg-base: #1a1a19;        /* warm charcoal, not pure black */
-  --bg-surface: #232220;     /* cards, input bg */
-  --bg-elevated: #2a2825;    /* hover, dropdowns */
-  --bg-input: #1f1e1c;       /* textareas */
-  --bg-hover: rgba(255, 255, 255, 0.05);
+  --bg-base:      #0a0a0b;
+  --bg-surface:   #121213;
+  --bg-elevated:  #1a1a1c;
+  --bg-input:     #161617;
+  --bg-hover:     rgba(255,255,255,0.05);
 
-  /* ── Borders (subtle, warm) ── */
-  --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-default: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.12);
+  --border-subtle: rgba(255,255,255,0.06);
+  --border-default: rgba(255,255,255,0.09);
+  --border-strong: rgba(255,255,255,0.14);
 
-  /* ── Text (warm whites) ── */
-  --text-primary: #ece9e4;   /* warm white */
-  --text-secondary: #b8b3a8; /* warm gray */
-  --text-muted: #807a6f;     /* warm muted */
+  --text-primary:   #fafafa;
+  --text-secondary: #a8a8a8;
+  --text-muted:     #6b6b6b;
 
-  /* ── Accent (Claude warm orange → we use our green but warmer) ── */
-  --accent: #7aab5e;         /* muted sage green */
-  --accent-hover: #8fc068;
-  --accent-muted: rgba(122, 171, 94, 0.12);
-  --accent-subtle: rgba(122, 171, 94, 0.06);
-  --accent-text: #9bc480;
+  --accent:        #7aab5e;
+  --accent-hover:  #8fc068;
+  --accent-text:   #9bc480;
+  --accent-muted:  rgba(122,171,94,0.12);
+  --accent-subtle: rgba(122,171,94,0.06);
+  --accent-border: rgba(122,171,94,0.25);
 
-  /* ── Status ── */
-  --danger: #d65d5d;
-  --danger-muted: rgba(214, 93, 93, 0.12);
+  --success: #32c48d;
   --warning: #e0a83e;
-  --warning-muted: rgba(224, 168, 62, 0.12);
-  --info: #6ba4d0;
-  --info-muted: rgba(107, 164, 208, 0.12);
-
-  /* ── Shadows (minimal, soft) ── */
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.2);
-  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.25);
-  --shadow-lg: 0 4px 20px rgba(0, 0, 0, 0.3);
+  --danger:  #ef7373;
+  --info:    #72a7d8;
 }
 
+/* ── Reset ── */
+* { box-sizing: border-box; }
+html { background: var(--bg-base); }
 body {
+  min-height: 100vh;
   margin: 0;
   background: var(--bg-base);
   color: var(--text-primary);
   font-family: var(--font-inter), Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  text-rendering: geometricPrecision;
+  text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+button, input, select, textarea { font: inherit; }
+::selection { background: var(--accent-muted); color: var(--text-primary); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-* {
-  box-sizing: border-box;
-}
-
-button,
-input,
-select,
-textarea {
-  font: inherit;
-}
-
-/* ── Selection ── */
-::selection {
-  background: var(--accent-muted);
-  color: var(--accent-text);
-}
-
-/* ── Focus outline ── */
-:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  border-radius: 4px;
-}
-
-/* ── Scrollbar (thin, subtle) ── */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 999px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.14);
-}
-
-/* ── Animations (subtle) ── */
-@keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes slide-up {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.animate-fade-in {
-  animation: fade-in 0.2s ease-out;
-}
-
-.animate-slide-up {
-  animation: slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-/* ── Glass effect (very subtle) ── */
-.glass {
-  background: rgba(26, 26, 25, 0.8);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-
-/* ── Chat markdown prose ── */
-.chat-markdown {
-  --tw-prose-body: var(--text-primary);
-  --tw-prose-headings: var(--text-primary);
-  --tw-prose-links: var(--accent-text);
-  --tw-prose-bold: var(--text-primary);
-  --tw-prose-code: var(--text-primary);
-}
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.16); }

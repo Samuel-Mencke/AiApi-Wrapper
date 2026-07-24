@@ -1,5 +1,5 @@
-import type { ModelRouteTarget } from "@ai-gateway/core";
-import { GatewayError } from "@ai-gateway/core/errors";
+import type { ModelRouteTarget } from "@model-console/core";
+import { GatewayError } from "@model-console/core/errors";
 import { sqlite } from "../db/client.js";
 
 const PROVIDER_QUOTA_ALIAS = "__provider__";

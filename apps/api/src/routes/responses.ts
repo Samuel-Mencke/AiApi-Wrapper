@@ -2,9 +2,11 @@ import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { nanoid } from "nanoid";
 import { z } from "zod";
-import { GatewayError } from "@ai-gateway/core/errors";
+import { GatewayError } from "@model-console/core/errors";
+import { estimateCostUsd } from "@model-console/core/pricing";
 import type { AuthContext } from "../middleware/auth.js";
 import { requireApiAuth } from "../middleware/auth.js";
+import { logRequest } from "../middleware/request-logger.js";
 import { db } from "../db/client.js";
 import { responseInputItems, storedResponses } from "../db/schema.js";
 import { executeStreamWithFallback, executeWithFallback } from "../router/fallback.js";
@@ -18,6 +20,7 @@ import {
   usageFromProvider
 } from "../responses/compat.js";
 import { createResponsesSseStream } from "../responses/stream.js";
+import { applyUncensoredTransform, isUncensoredAlias, uncensoredInstructions } from "../middleware/uncensored.js";
 
 const responseCreateSchema = z.object({
   model: z.string().min(1),
@@ -154,10 +157,24 @@ export async function responseRoutes(app: FastifyInstance): Promise<void> {
     const responseId = `resp_${nanoid(32)}`;
     const createdAt = Math.floor(Date.now() / 1000);
     const inputItems = inputItemsFromResponseInput(parsed.input);
+
+    // Uncensored mode: strip instructions, strip system messages, inject uncensored prompt
+    const uncensored = isUncensoredAlias(parsed.model);
+    const effectiveInstructions = uncensored
+      ? uncensoredInstructions()
+      : parsed.instructions;
+
     const messages = [
       ...collectPreviousMessages(parsed.previous_response_id, request.auth),
-      ...responseInputItemsToMessages(inputItems, parsed.instructions)
+      ...responseInputItemsToMessages(inputItems, effectiveInstructions)
     ];
+
+    if (uncensored) {
+      // Apply transform again to catch system messages from previous_response_id chain
+      const transformed = applyUncensoredTransform(messages);
+      messages.length = 0;
+      messages.push(...transformed);
+    }
 
     if (messages.length === 0) {
       throw new GatewayError("Response input must contain at least one message.", {
@@ -181,7 +198,7 @@ export async function responseRoutes(app: FastifyInstance): Promise<void> {
         createdAt,
         model: parsed.model,
         request: responseRequest,
-        onComplete: (finalResponse) => {
+        onComplete: (finalResponse, usage) => {
           if (parsed.store !== false) {
             storeResponse({
               id: responseId,
@@ -194,6 +211,21 @@ export async function responseRoutes(app: FastifyInstance): Promise<void> {
               inputItems
             });
           }
+          // Log with REAL token counts from the stream's final chunk
+          const inputTokens = usage?.input_tokens;
+          const outputTokens = usage?.output_tokens;
+          logRequest({
+            requestId: request.requestId,
+            apiKeyId: request.auth.apiKeyId,
+            modelAlias: parsed.model,
+            provider: result.provider,
+            realModel: result.realModel,
+            status: "success",
+            latencyMs: Date.now() - result.started,
+            inputTokens,
+            outputTokens,
+            estimatedCost: estimateCostUsd(result.realModel, inputTokens, outputTokens)
+          });
         }
       });
 

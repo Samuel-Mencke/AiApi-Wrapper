@@ -1,4 +1,4 @@
-import type { InternalChatRequest, ProviderResponse } from "@ai-gateway/core";
+import type { InternalChatRequest, ProviderResponse } from "@model-console/core";
 
 /** Strip provider-specific fields from a raw response to make it OpenAI-compatible. */
 function stripProviderFields(raw: Record<string, unknown>, includeReasoning: boolean): Record<string, unknown> {
@@ -33,6 +33,37 @@ function stripProviderFields(raw: Record<string, unknown>, includeReasoning: boo
 }
 
 export function toOpenAiChatResponse(request: InternalChatRequest, response: ProviderResponse): unknown {
+  // If the adapter extracted tool calls (e.g. chatgpt-web emulated tools),
+  // always use the structured response fields instead of the raw upstream body.
+  if (response.toolCalls && Array.isArray(response.toolCalls) && response.toolCalls.length > 0) {
+    return {
+      id: response.id,
+      object: "chat.completion",
+      created: Math.floor(Date.now() / 1000),
+      model: request.modelAlias,
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: "assistant",
+            content: response.content || null,
+            tool_calls: response.toolCalls,
+            ...(request.gateway?.includeReasoning && response.reasoningText ? { reasoning_content: response.reasoningText } : {}),
+            ...(request.gateway?.includeReasoning && response.thinkingText ? { thinking_content: response.thinkingText } : {})
+          },
+          finish_reason: response.finishReason ?? "tool_calls"
+        }
+      ],
+      usage: response.usage
+        ? {
+            prompt_tokens: response.usage.inputTokens ?? 0,
+            completion_tokens: response.usage.outputTokens ?? 0,
+            total_tokens: response.usage.totalTokens ?? 0
+          }
+        : undefined
+    };
+  }
+
   if (response.raw && typeof response.raw === "object" && !Array.isArray(response.raw)) {
     const cleaned = stripProviderFields({ ...(response.raw as Record<string, unknown>) }, request.gateway?.includeReasoning === true);
     return {

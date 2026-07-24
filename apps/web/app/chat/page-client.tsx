@@ -90,7 +90,7 @@ type RichBlock =
   | { type: "chart"; chartType: "bar" | "line" | "pie" | "scatter"; title?: string; xKey?: string; series: Array<{ dataKey: string; label?: string; valueSuffix?: string }>; data: Array<Record<string, string | number | boolean | null>> }
   | { type: "function_plot"; title?: string; expression: string; points?: Array<{ x: number; y: number }> }
   | { type: "math"; content: string; display?: boolean }
-  | { type: "html"; title?: string; content?: string }
+  | { type: "html"; title?: string; content: string; fullscreen?: boolean }
   | { type: "tool_call"; toolName: string; input: Record<string, unknown>; status: string }
   | { type: "tool_result"; toolName: string; summary: string; sources?: Array<{ title: string; url: string }> }
   | { type: "status"; status: string; content?: string }
@@ -158,7 +158,7 @@ interface ThreadPayload {
   steps: ChatStep[];
 }
 
-const colors = ["#7aab5e", "#9ca3af", "#b8b3a8", "#807a6f", "#807a6f", "#807a6f"];
+const colors = ["var(--accent)", "var(--text-secondary)", "var(--text-secondary)", "var(--text-muted)", "var(--text-muted)", "var(--text-muted)"];
 
 function useAutoScroll<T>(dependency: T) {
   const ref = useRef<HTMLDivElement | null>(null);
@@ -172,7 +172,7 @@ function CopyButton({ value }: { value: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <button
-      className="inline-flex h-7 items-center gap-1 rounded-md border border-white/[0.07] bg-white/[0.025] px-2 text-xs text-[#807a6f] transition hover:bg-white/[0.06] hover:text-[#ece9e4]"
+      className="inline-flex h-7 items-center gap-1 rounded-md border border-white/[0.07] bg-white/[0.025] px-2 text-xs text-[var(--text-muted)] transition hover:bg-white/[0.06] hover:text-[var(--text-primary)]"
       onClick={async () => {
         await navigator.clipboard.writeText(value);
         setCopied(true);
@@ -187,37 +187,37 @@ function CopyButton({ value }: { value: string }) {
 
 function MarkdownBlock({ content }: { content: string }) {
   return (
-    <div className="chat-markdown max-w-none text-[15px] leading-7 text-[#ece9e4]">
+    <div className="chat-markdown max-w-none text-[15px] leading-7 text-[var(--text-primary)]">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          h1: ({ children }) => <h1 className="mb-4 mt-7 text-2xl font-semibold leading-tight text-[#ece9e4] first:mt-0">{children}</h1>,
-          h2: ({ children }) => <h2 className="mb-3 mt-7 text-xl font-semibold leading-tight text-[#ece9e4] first:mt-0">{children}</h2>,
-          h3: ({ children }) => <h3 className="mb-2 mt-6 text-base font-semibold leading-snug text-[#ece9e4] first:mt-0">{children}</h3>,
+          h1: ({ children }) => <h1 className="mb-4 mt-7 text-2xl font-semibold leading-tight text-[var(--text-primary)] first:mt-0">{children}</h1>,
+          h2: ({ children }) => <h2 className="mb-3 mt-7 text-xl font-semibold leading-tight text-[var(--text-primary)] first:mt-0">{children}</h2>,
+          h3: ({ children }) => <h3 className="mb-2 mt-6 text-base font-semibold leading-snug text-[var(--text-primary)] first:mt-0">{children}</h3>,
           p: ({ children }) => <p className="my-3 first:mt-0 last:mb-0">{children}</p>,
           ul: ({ children }) => <ul className="my-3 list-disc space-y-1 pl-5">{children}</ul>,
           ol: ({ children }) => <ol className="my-3 list-decimal space-y-1 pl-5">{children}</ol>,
           li: ({ children }) => <li className="pl-1">{children}</li>,
-          strong: ({ children }) => <strong className="font-semibold text-[#ece9e4]">{children}</strong>,
-          em: ({ children }) => <em className="text-[#b8b3a8]">{children}</em>,
-          blockquote: ({ children }) => <blockquote className="my-4 border-l-2 border-white/[0.16] pl-4 text-[#b8b3a8]">{children}</blockquote>,
+          strong: ({ children }) => <strong className="font-semibold text-[var(--text-primary)]">{children}</strong>,
+          em: ({ children }) => <em className="text-[var(--text-secondary)]">{children}</em>,
+          blockquote: ({ children }) => <blockquote className="my-4 border-l-2 border-white/[0.16] pl-4 text-[var(--text-secondary)]">{children}</blockquote>,
           hr: () => <hr className="my-7 border-white/[0.07]" />,
           table: ({ children }) => <div className="my-4 overflow-x-auto rounded-lg border border-white/[0.075]"><table className="min-w-full border-collapse text-left text-sm">{children}</table></div>,
-          thead: ({ children }) => <thead className="bg-white/[0.035] text-xs text-[#807a6f]">{children}</thead>,
+          thead: ({ children }) => <thead className="bg-white/[0.035] text-xs text-[var(--text-muted)]">{children}</thead>,
           tbody: ({ children }) => <tbody className="divide-y divide-white/[0.055]">{children}</tbody>,
           tr: ({ children }) => <tr>{children}</tr>,
-          th: ({ children }) => <th className="whitespace-nowrap px-3 py-2 font-semibold text-[#b8b3a8]">{children}</th>,
-          td: ({ children }) => <td className="px-3 py-2 align-top text-[#b8b3a8]">{children}</td>,
-          img: ({ alt }) => <span className="rounded bg-white/[0.06] px-1.5 py-0.5 text-xs text-[#807a6f]">image blocked{alt ? `: ${alt}` : ""}</span>,
+          th: ({ children }) => <th className="whitespace-nowrap px-3 py-2 font-semibold text-[var(--text-secondary)]">{children}</th>,
+          td: ({ children }) => <td className="px-3 py-2 align-top text-[var(--text-secondary)]">{children}</td>,
+          img: ({ alt }) => <span className="rounded bg-white/[0.06] px-1.5 py-0.5 text-xs text-[var(--text-muted)]">image blocked{alt ? `: ${alt}` : ""}</span>,
           a: ({ href, children }) => {
             const safe = href?.startsWith("http://") || href?.startsWith("https://");
-            return safe ? <a className="text-[#ece9e4] underline decoration-white/30 underline-offset-4 hover:decoration-white/70" href={href} target="_blank" rel="noreferrer">{children}</a> : <span>{children}</span>;
+            return safe ? <a className="text-[var(--text-primary)] underline decoration-white/30 underline-offset-4 hover:decoration-white/70" href={href} target="_blank" rel="noreferrer">{children}</a> : <span>{children}</span>;
           },
           pre: ({ children }) => <>{children}</>,
           code: ({ className, children }) => {
             const text = String(children);
             const language = /language-(\w+)/.exec(className ?? "")?.[1];
-            return language ? <CodeBlock language={language} content={text.replace(/\n$/, "")} /> : <code className="rounded bg-white/[0.065] px-1.5 py-0.5 text-[0.9em] text-[#ece9e4]">{children}</code>;
+            return language ? <CodeBlock language={language} content={text.replace(/\n$/, "")} /> : <code className="rounded bg-white/[0.065] px-1.5 py-0.5 text-[0.9em] text-[var(--text-primary)]">{children}</code>;
           }
         }}
       >
@@ -229,9 +229,9 @@ function MarkdownBlock({ content }: { content: string }) {
 
 function CodeBlock({ language, filename, content }: { language?: string; filename?: string; content: string }) {
   return (
-    <div className="my-4 overflow-hidden rounded-lg border border-white/[0.075] bg-[#1f1e1c]">
+    <div className="my-4 overflow-hidden rounded-lg border border-white/[0.075] bg-[var(--bg-input)]">
       <div className="flex items-center justify-between gap-3 border-b border-white/[0.055] px-3 py-2">
-        <div className="min-w-0 truncate text-xs text-[#807a6f]">{filename ?? language ?? "code"}</div>
+        <div className="min-w-0 truncate text-xs text-[var(--text-muted)]">{filename ?? language ?? "code"}</div>
         <CopyButton value={content} />
       </div>
       <SyntaxHighlighter
@@ -261,13 +261,13 @@ function TableBlock({ block }: { block: Extract<RichBlock, { type: "table" }> })
     });
   }, [block.rows, direction, filter, sortKey]);
   return (
-    <div className="rounded-lg border border-white/[0.075] bg-[#1f1e1c]">
+    <div className="rounded-lg border border-white/[0.075] bg-[var(--bg-input)]">
       <div className="flex flex-col gap-2 border-b border-white/[0.055] p-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="text-sm font-medium text-[#ece9e4]">{block.title ?? "Table"}</div>
+        <div className="text-sm font-medium text-[var(--text-primary)]">{block.title ?? "Table"}</div>
         <div className="flex items-center gap-2">
           {block.filterable ? (
             <input
-              className="h-8 rounded-md border border-white/[0.075] bg-[#1a1a19] px-2 text-xs text-[#b8b3a8] outline-none"
+              className="h-8 rounded-md border border-white/[0.075] bg-[var(--bg-base)] px-2 text-xs text-[var(--text-secondary)] outline-none"
               placeholder="Filter"
               value={filter}
               onChange={(event) => setFilter(event.target.value)}
@@ -278,7 +278,7 @@ function TableBlock({ block }: { block: Extract<RichBlock, { type: "table" }> })
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-full text-left text-sm">
-          <thead className="bg-white/[0.035] text-xs text-[#807a6f]">
+          <thead className="bg-white/[0.035] text-xs text-[var(--text-muted)]">
             <tr>
               {block.columns.map((column) => (
                 <th key={column.key} className="whitespace-nowrap px-3 py-2">
@@ -298,7 +298,7 @@ function TableBlock({ block }: { block: Extract<RichBlock, { type: "table" }> })
           </thead>
           <tbody>
             {rows.map((row, index) => (
-              <tr key={index} className="border-t border-white/[0.055] text-[#b8b3a8]">
+              <tr key={index} className="border-t border-white/[0.055] text-[var(--text-secondary)]">
                 {block.columns.map((column) => (
                   <td key={column.key} className="whitespace-nowrap px-3 py-2">{String(row[column.key] ?? "")}</td>
                 ))}
@@ -313,33 +313,33 @@ function TableBlock({ block }: { block: Extract<RichBlock, { type: "table" }> })
 
 function ChartBlock({ block }: { block: Extract<RichBlock, { type: "chart" }> }) {
   const suffix = block.series[0]?.valueSuffix ?? "";
-  const tooltip = <Tooltip contentStyle={{ background: "#1a1a19", border: "1px solid rgba(255,255,255,.08)", borderRadius: 8, color: "#ece9e4" }} formatter={(value) => `${value}${suffix}`} />;
+  const tooltip = <Tooltip contentStyle={{ background: "var(--bg-base)", border: "1px solid rgba(255,255,255,.08)", borderRadius: 8, color: "var(--text-primary)" }} formatter={(value) => `${value}${suffix}`} />;
   return (
-    <div className="rounded-lg border border-white/[0.075] bg-[#1f1e1c] p-3">
-      {block.title ? <div className="mb-3 text-sm font-medium text-[#ece9e4]">{block.title}</div> : null}
+    <div className="rounded-lg border border-white/[0.075] bg-[var(--bg-input)] p-3">
+      {block.title ? <div className="mb-3 text-sm font-medium text-[var(--text-primary)]">{block.title}</div> : null}
       <div className="h-72">
         <ResponsiveContainer>
           {block.chartType === "line" ? (
             <LineChart data={block.data}>
               <CartesianGrid stroke="rgba(255,255,255,.07)" strokeDasharray="3 6" vertical={false} />
-              <XAxis dataKey={block.xKey} stroke="#807a6f" />
-              <YAxis stroke="#807a6f" />
+              <XAxis dataKey={block.xKey} stroke="var(--text-muted)" />
+              <YAxis stroke="var(--text-muted)" />
               {tooltip}
               {block.series.map((series, index) => <Line key={series.dataKey} type="monotone" dataKey={series.dataKey} name={series.label} stroke={colors[index % colors.length]} strokeWidth={2} dot={false} />)}
             </LineChart>
           ) : block.chartType === "bar" ? (
             <BarChart data={block.data}>
               <CartesianGrid stroke="rgba(255,255,255,.07)" strokeDasharray="3 6" vertical={false} />
-              <XAxis dataKey={block.xKey} stroke="#807a6f" />
-              <YAxis stroke="#807a6f" />
+              <XAxis dataKey={block.xKey} stroke="var(--text-muted)" />
+              <YAxis stroke="var(--text-muted)" />
               {tooltip}
               {block.series.map((series, index) => <Bar key={series.dataKey} dataKey={series.dataKey} name={series.label} fill={colors[index % colors.length]} radius={[5, 5, 0, 0]} />)}
             </BarChart>
           ) : block.chartType === "scatter" ? (
             <ScatterChart>
               <CartesianGrid stroke="rgba(255,255,255,.07)" strokeDasharray="3 6" vertical={false} />
-              <XAxis dataKey={block.xKey ?? "x"} stroke="#807a6f" />
-              <YAxis dataKey={block.series[0]?.dataKey ?? "y"} stroke="#807a6f" />
+              <XAxis dataKey={block.xKey ?? "x"} stroke="var(--text-muted)" />
+              <YAxis dataKey={block.series[0]?.dataKey ?? "y"} stroke="var(--text-muted)" />
               {tooltip}
               <Scatter data={block.data} fill={colors[0]} />
             </ScatterChart>
@@ -360,16 +360,16 @@ function ChartBlock({ block }: { block: Extract<RichBlock, { type: "chart" }> })
 function FunctionPlotBlock({ block }: { block: Extract<RichBlock, { type: "function_plot" }> }) {
   const data = block.points ?? [];
   return (
-    <div className="rounded-lg border border-white/[0.075] bg-[#1f1e1c] p-3">
-      <div className="mb-3 text-sm font-medium text-[#ece9e4]">{block.title ?? block.expression}</div>
+    <div className="rounded-lg border border-white/[0.075] bg-[var(--bg-input)] p-3">
+      <div className="mb-3 text-sm font-medium text-[var(--text-primary)]">{block.title ?? block.expression}</div>
       <div className="h-64">
         <ResponsiveContainer>
           <LineChart data={data}>
             <CartesianGrid stroke="rgba(255,255,255,.07)" strokeDasharray="3 6" vertical={false} />
-            <XAxis dataKey="x" stroke="#807a6f" />
-            <YAxis stroke="#807a6f" />
-            <Tooltip contentStyle={{ background: "#1a1a19", border: "1px solid rgba(255,255,255,.08)", borderRadius: 8, color: "#ece9e4" }} />
-            <Line type="monotone" dataKey="y" stroke="#7aab5e" dot={false} strokeWidth={2} />
+            <XAxis dataKey="x" stroke="var(--text-muted)" />
+            <YAxis stroke="var(--text-muted)" />
+            <Tooltip contentStyle={{ background: "var(--bg-base)", border: "1px solid rgba(255,255,255,.08)", borderRadius: 8, color: "var(--text-primary)" }} />
+            <Line type="monotone" dataKey="y" stroke="var(--accent)" dot={false} strokeWidth={2} />
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -381,9 +381,110 @@ function LegacyBlock({ block }: { block: Record<string, unknown> }) {
   const content = typeof block.content === "string" ? block.content : JSON.stringify(block, null, 2);
   const type = typeof block.type === "string" ? block.type : "unknown";
   return (
-    <div className="rounded-lg border border-white/[0.075] bg-[#1f1e1c] p-3">
-      <div className="mb-2 text-xs text-[#807a6f]">{type === "html" ? "Legacy HTML block shown as code" : `Unsupported block: ${type}`}</div>
-      <CodeBlock language={type === "html" ? "html" : "json"} content={content} />
+    <div className="rounded-lg border border-white/[0.075] bg-[var(--bg-input)] p-3">
+      <div className="mb-2 text-xs text-[var(--text-muted)]">{`Unsupported block: ${type}`}</div>
+      <CodeBlock language="json" content={content} />
+    </div>
+  );
+}
+
+function HtmlBlock({ block, onSubmit }: { block: { type: "html"; title?: string; content: string }; onSubmit?: (data: string) => void }) {
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [height, setHeight] = useState(200);
+  const html = block.content;
+
+  // Inject a small bridge script that intercepts form submissions and posts them to the parent
+  const bridgedHtml = useMemo(() => {
+    const bridge = `<script>
+      (function() {
+        document.addEventListener('submit', function(e) {
+          e.preventDefault();
+          var form = e.target;
+          var formData = new FormData(form);
+          var data = {};
+          formData.forEach(function(val, key) { data[key] = val; });
+          // Also capture button that triggered submit
+          var activeBtn = document.activeElement;
+          if (activeBtn && activeBtn.tagName === 'BUTTON' && activeBtn.name) {
+            data[activeBtn.name] = activeBtn.value;
+          }
+          window.parent.postMessage({ __htmlBlockSubmit: true, data: data, action: form.action, method: form.method || 'get' }, '*');
+        }, true);
+        // Auto-resize: report body height to parent
+        function reportHeight() {
+          var h = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+          window.parent.postMessage({ __htmlBlockResize: true, height: h }, '*');
+        }
+        if (document.readyState === 'complete') reportHeight();
+        else window.addEventListener('load', reportHeight);
+        // MutationObserver for dynamic content
+        if (window.MutationObserver) {
+          new MutationObserver(function() { reportHeight(); }).observe(document.body, { childList: true, subtree: true, attributes: false });
+        }
+      })();
+    </script>`;
+    // Inject before </body> if present, otherwise append
+    if (html.includes("</body>")) {
+      return html.replace("</body>", bridge + "</body>");
+    }
+    return html + bridge;
+  }, [html]);
+
+  useEffect(() => {
+    function onMessage(event: MessageEvent) {
+      const data = event.data;
+      if (!data || typeof data !== "object") return;
+      if (data.__htmlBlockResize && typeof data.height === "number") {
+        setHeight(Math.min(Math.max(data.height + 8, 100), 2000));
+      }
+      if (data.__htmlBlockSubmit && onSubmit) {
+        const formData = data.data;
+        const action = data.action;
+        // Build a readable message string from form data
+        const parts: string[] = [];
+        // If the form action contains a prompt-like path, use that
+        if (action && typeof action === "string" && action !== "javascript:void(0)" && !action.startsWith("about:")) {
+          try {
+            const url = new URL(action, window.location.href);
+            const prompt = url.searchParams.get("prompt");
+            if (prompt) {
+              onSubmit(prompt);
+              return;
+            }
+          } catch { /* not a URL */ }
+        }
+        // Otherwise serialize form fields
+        for (const [key, value] of Object.entries(formData)) {
+          parts.push(`${key}: ${value}`);
+        }
+        if (parts.length) {
+          onSubmit(parts.join("\n"));
+        }
+      }
+    }
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [onSubmit]);
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-white/[0.075] bg-[var(--bg-input)]">
+      {block.title ? (
+        <div className="flex items-center justify-between gap-3 border-b border-white/[0.055] px-3 py-2">
+          <div className="min-w-0 truncate text-xs text-[var(--text-muted)]">{block.title}</div>
+          <CopyButton value={html} />
+        </div>
+      ) : null}
+      <div ref={containerRef}>
+        <iframe
+          ref={iframeRef}
+          title={block.title ?? "HTML content"}
+          sandbox="allow-scripts allow-forms"
+          className="w-full border-0"
+          style={{ height: `${height}px`, background: "var(--bg-base)" }}
+          srcDoc={bridgedHtml}
+        />
+      </div>
     </div>
   );
 }
@@ -393,20 +494,20 @@ function ThinkingDisclosure({ content, live = false, placeholder = false }: { co
   const hasContent = Boolean(content?.trim());
   if (!hasContent && !placeholder) return null;
   return (
-    <div className={cn("rounded-lg border bg-[#2a2825]", open ? "border-white/[0.22]" : "border-white/[0.075]")}>
-      <button className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm text-[#807a6f] transition hover:text-[#b8b3a8]" onClick={() => setOpen(!open)}>
+    <div className={cn("rounded-lg border bg-[var(--bg-elevated)]", open ? "border-white/[0.22]" : "border-white/[0.075]")}>
+      <button className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm text-[var(--text-muted)] transition hover:text-[var(--text-secondary)]" onClick={() => setOpen(!open)}>
         <span className="inline-flex min-w-0 items-center gap-2">
-          <BrainCircuit className={cn("h-4 w-4", live && "animate-pulse text-[#b8b3a8]")} />
+          <BrainCircuit className={cn("h-4 w-4", live && "animate-pulse text-[var(--text-secondary)]")} />
           <span className="font-medium">{live ? "Thought Process..." : "Thought Process"}</span>
         </span>
         <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 transition", open && "rotate-180")} />
       </button>
-      {open && hasContent ? <div className="max-h-72 overflow-y-auto whitespace-pre-wrap border-t border-white/[0.07] px-3 py-2 text-xs leading-5 text-[#807a6f]">{content}</div> : null}
+      {open && hasContent ? <div className="max-h-72 overflow-y-auto whitespace-pre-wrap border-t border-white/[0.07] px-3 py-2 text-xs leading-5 text-[var(--text-muted)]">{content}</div> : null}
     </div>
   );
 }
 
-function RichBlockView({ block }: { block: RichBlock }) {
+function RichBlockView({ block, onSubmit }: { block: RichBlock; onSubmit?: (data: string) => void }) {
   if (block.type === "markdown") return <MarkdownBlock content={typeof block.content === "string" ? block.content : ""} />;
   if (block.type === "code") {
     return (
@@ -417,18 +518,18 @@ function RichBlockView({ block }: { block: RichBlock }) {
       />
     );
   }
+  if (block.type === "html") return <HtmlBlock block={block as Extract<RichBlock, { type: "html" }>} onSubmit={onSubmit} />;
   if (block.type === "table") return <TableBlock block={block as Extract<RichBlock, { type: "table" }>} />;
   if (block.type === "chart") return <ChartBlock block={block as Extract<RichBlock, { type: "chart" }>} />;
   if (block.type === "function_plot") return <FunctionPlotBlock block={block as Extract<RichBlock, { type: "function_plot" }>} />;
-  if (block.type === "math") return <div className="overflow-x-auto rounded-lg border border-white/[0.075] bg-[#1f1e1c] p-3"><BlockMath math={String(block.content ?? "")} /></div>;
-  if (block.type === "html") return <LegacyBlock block={block as Record<string, unknown>} />;
+  if (block.type === "math") return <div className="overflow-x-auto rounded-lg border border-white/[0.075] bg-[var(--bg-input)] p-3"><BlockMath math={String(block.content ?? "")} /></div>;
   if (block.type === "error") {
     const message = typeof block.message === "string" ? block.message : "Unknown rich block error";
     const normalizedMessage = message.toLowerCase();
     if (normalizedMessage.includes("rich content block") || normalizedMessage.includes("rich_blocks")) return null;
-    return <div className="rounded-lg border border-[#d65d5d]/25 bg-[#d65d5d]/10 p-3 text-sm text-[#e8a0a0]">{message}</div>;
+    return <div className="rounded-lg border border-[var(--danger)]/25 bg-[var(--danger)]/10 p-3 text-sm text-[var(--danger)]">{message}</div>;
   }
-  if (block.type === "status") return <div className="rounded-lg border border-white/[0.075] bg-white/[0.025] p-3 text-sm text-[#807a6f]">{String(block.content ?? block.status)}</div>;
+  if (block.type === "status") return <div className="rounded-lg border border-white/[0.075] bg-white/[0.025] p-3 text-sm text-[var(--text-muted)]">{String(block.content ?? block.status)}</div>;
   if (block.type === "tool_call" || block.type === "tool_result") return <CodeBlock language="json" content={JSON.stringify(block, null, 2)} />;
   return <LegacyBlock block={block as Record<string, unknown>} />;
 }
@@ -480,14 +581,14 @@ function ActivityDisclosure({ run, steps }: { run?: ChatRun; steps: ChatStep[] }
 
   return (
     <div className="pt-1">
-      <button className="inline-flex items-center gap-1.5 rounded-md py-1 text-xs text-[#807a6f] transition hover:text-[#b8b3a8]" onClick={() => setOpen(!open)}>
+      <button className="inline-flex items-center gap-1.5 rounded-md py-1 text-xs text-[var(--text-muted)] transition hover:text-[var(--text-secondary)]" onClick={() => setOpen(!open)}>
         <span>{activitySummary(run, relevantSteps)}</span>
         <ChevronDown className={cn("h-3.5 w-3.5 transition", open && "rotate-180")} />
       </button>
       {open ? (
-        <div className="mt-2 space-y-2 rounded-lg border border-white/[0.07] bg-[#1f1e1c] p-2">
+        <div className="mt-2 space-y-2 rounded-lg border border-white/[0.07] bg-[var(--bg-input)] p-2">
           {run ? (
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[11px] text-[#807a6f]">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[11px] text-[var(--text-muted)]">
               <span>{run.status}</span>
               <span>{run.modelAlias}</span>
               {run.provider ? <span>{run.provider}</span> : null}
@@ -504,18 +605,18 @@ function ActivityDisclosure({ run, steps }: { run?: ChatRun; steps: ChatStep[] }
               <details key={step.id} className="rounded-md border border-white/[0.055] bg-white/[0.018]">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-left">
                   <span className="flex min-w-0 items-center gap-2 text-xs">
-                    <span className={cn("h-1.5 w-1.5 rounded-full", step.status === "completed" ? "bg-[#7aab5e]" : step.status === "failed" ? "bg-[#d65d5d]" : "bg-[#e0a83e]")} />
-                    <span className="truncate text-[#b8b3a8]">{stepLabel(step)}</span>
-                    <span className="text-[#5a554d]">{step.status}</span>
+                    <span className={cn("h-1.5 w-1.5 rounded-full", step.status === "completed" ? "bg-[var(--accent)]" : step.status === "failed" ? "bg-[var(--danger)]" : "bg-[var(--warning)]")} />
+                    <span className="truncate text-[var(--text-secondary)]">{stepLabel(step)}</span>
+                    <span className="text-[var(--text-muted)]">{step.status}</span>
                   </span>
-                  <span className="shrink-0 text-[11px] text-[#5a554d]">{step.latencyMs ? `${step.latencyMs} ms` : step.type}</span>
+                  <span className="shrink-0 text-[11px] text-[var(--text-muted)]">{step.latencyMs ? `${step.latencyMs} ms` : step.type}</span>
                 </summary>
-                <div className="space-y-3 border-t border-white/[0.05] p-3 text-xs text-[#807a6f]">
+                <div className="space-y-3 border-t border-white/[0.05] p-3 text-xs text-[var(--text-muted)]">
                   {"summary" in output ? <div className="whitespace-pre-wrap">{String((output as any).summary).slice(0, 1000)}</div> : null}
                   {sources.length ? (
                     <div className="flex flex-wrap gap-2">
                       {sources.map((source) => (
-                        <a key={source.url} className="rounded-md border border-white/[0.08] px-2 py-1 text-[#6ba4d0]" href={source.url} target="_blank" rel="noreferrer">
+                        <a key={source.url} className="rounded-md border border-white/[0.08] px-2 py-1 text-[var(--info)]" href={source.url} target="_blank" rel="noreferrer">
                           {source.title}
                         </a>
                       ))}
@@ -529,7 +630,7 @@ function ActivityDisclosure({ run, steps }: { run?: ChatRun; steps: ChatStep[] }
               </details>
             );
           })}
-          {!steps.length ? <div className="px-1 text-xs text-[#807a6f]">No detailed steps recorded.</div> : null}
+          {!steps.length ? <div className="px-1 text-xs text-[var(--text-muted)]">No detailed steps recorded.</div> : null}
         </div>
       ) : null}
     </div>
@@ -543,7 +644,7 @@ function AttachmentThumb({ attachment }: { attachment: Attachment }) {
         href={attachmentUrl(attachment.url)}
         target="_blank"
         rel="noreferrer"
-        className="block overflow-hidden rounded-lg border border-white/[0.08] bg-[#1f1e1c]"
+        className="block overflow-hidden rounded-lg border border-white/[0.08] bg-[var(--bg-input)]"
         title={attachment.filename}
       >
         <img
@@ -559,12 +660,12 @@ function AttachmentThumb({ attachment }: { attachment: Attachment }) {
       href={attachmentUrl(attachment.url)}
       target="_blank"
       rel="noreferrer"
-      className="inline-flex items-center gap-2 rounded-lg border border-white/[0.08] bg-[#1f1e1c] px-2.5 py-1.5 text-xs text-[#b8b3a8] transition hover:bg-white/[0.04]"
+      className="inline-flex items-center gap-2 rounded-lg border border-white/[0.08] bg-[var(--bg-input)] px-2.5 py-1.5 text-xs text-[var(--text-secondary)] transition hover:bg-white/[0.04]"
       title={attachment.filename}
     >
-      <Paperclip className="h-3.5 w-3.5 shrink-0 text-[#807a6f]" />
+      <Paperclip className="h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]" />
       <span className="max-w-[12rem] truncate">{attachment.filename}</span>
-      <span className="text-[#5a554d]">{formatBytes(attachment.size)}</span>
+      <span className="text-[var(--text-muted)]">{formatBytes(attachment.size)}</span>
     </a>
   );
 }
@@ -574,10 +675,10 @@ function SiblingNav({ message, onNavigate }: { message: ChatMessage; onNavigate:
   const index = message.siblingIndex ?? 0;
   if (count <= 1) return null;
   return (
-    <span className="inline-flex h-7 items-center gap-0.5 rounded-md border border-white/[0.07] bg-white/[0.025] px-1 text-xs text-[#807a6f]">
+    <span className="inline-flex h-7 items-center gap-0.5 rounded-md border border-white/[0.07] bg-white/[0.025] px-1 text-xs text-[var(--text-muted)]">
       <button
         type="button"
-        className="inline-flex h-5 w-5 items-center justify-center rounded text-[#807a6f] transition hover:bg-white/[0.06] hover:text-[#ece9e4] disabled:opacity-30"
+        className="inline-flex h-5 w-5 items-center justify-center rounded text-[var(--text-muted)] transition hover:bg-white/[0.06] hover:text-[var(--text-primary)] disabled:opacity-30"
         disabled={index <= 0}
         onClick={onNavigate}
         title="Previous sibling"
@@ -587,7 +688,7 @@ function SiblingNav({ message, onNavigate }: { message: ChatMessage; onNavigate:
       <span className="min-w-[2rem] text-center tabular-nums">{index + 1}/{count}</span>
       <button
         type="button"
-        className="inline-flex h-5 w-5 items-center justify-center rounded text-[#807a6f] transition hover:bg-white/[0.06] hover:text-[#ece9e4] disabled:opacity-30"
+        className="inline-flex h-5 w-5 items-center justify-center rounded text-[var(--text-muted)] transition hover:bg-white/[0.06] hover:text-[var(--text-primary)] disabled:opacity-30"
         disabled={index >= count - 1}
         onClick={onNavigate}
         title="Next sibling"
@@ -609,6 +710,7 @@ interface MessageViewProps {
   onEditSave: (text: string) => void;
   onDelete: () => void;
   onNavigateSibling: () => void;
+  onHtmlSubmit?: (data: string) => void;
 }
 
 function MessageView({
@@ -621,7 +723,8 @@ function MessageView({
   onRegenerateWithModel,
   onEditSave,
   onDelete,
-  onNavigateSibling
+  onNavigateSibling,
+  onHtmlSubmit
 }: MessageViewProps) {
   const blocks = message.contentBlocks?.blocks?.length ? message.contentBlocks.blocks : [{ type: "markdown", content: message.contentText } as RichBlock];
   const metadata = message.metadata ?? {};
@@ -638,16 +741,16 @@ function MessageView({
     return (
       <div className="group flex justify-end gap-2 py-3">
         <div className="flex max-w-[min(680px,85%)] flex-col items-end gap-1.5">
-          <div className="text-xs font-medium text-[#807a6f]">Du</div>
+          <div className="text-xs font-medium text-[var(--text-muted)]">Du</div>
           {attachments.length > 0 ? (
             <div className="flex flex-wrap justify-end gap-2">
               {attachments.map((attachment) => <AttachmentThumb key={attachment.id} attachment={attachment} />)}
             </div>
           ) : null}
           {isEditing ? (
-            <div className="w-full min-w-[18rem] rounded-2xl rounded-br-md border border-white/[0.12] bg-[#2a2825] p-2">
+            <div className="w-full min-w-[18rem] rounded-2xl rounded-br-md border border-white/[0.12] bg-[var(--bg-elevated)] p-2">
               <textarea
-                className="max-h-60 min-h-[3rem] w-full resize-none bg-transparent px-2 py-1.5 text-[15px] leading-7 text-[#ece9e4] outline-none"
+                className="max-h-60 min-h-[3rem] w-full resize-none bg-transparent px-2 py-1.5 text-[15px] leading-7 text-[var(--text-primary)] outline-none"
                 value={draft}
                 autoFocus
                 onChange={(event) => setDraft(event.target.value)}
@@ -667,13 +770,13 @@ function MessageView({
               />
               <div className="flex items-center justify-end gap-2 px-1 pb-1 pt-1">
                 <button
-                  className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-[#807a6f] transition hover:bg-white/[0.06] hover:text-[#ece9e4]"
+                  className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-[var(--text-muted)] transition hover:bg-white/[0.06] hover:text-[var(--text-primary)]"
                   onClick={() => { setDraft(message.contentText); setIsEditing(false); }}
                 >
                   Cancel
                 </button>
                 <button
-                  className="inline-flex h-7 items-center gap-1 rounded-md bg-[#7aab5e] px-3 text-xs font-medium text-[#1a1a19] transition hover:bg-[#8bbf6c] disabled:opacity-50"
+                  className="inline-flex h-7 items-center gap-1 rounded-md bg-[var(--accent)] px-3 text-xs font-medium text-[var(--bg-base)] transition hover:bg-[var(--accent-hover)] disabled:opacity-50"
                   disabled={!draft.trim()}
                   onClick={() => { onEditSave(draft); setIsEditing(false); }}
                 >
@@ -682,19 +785,19 @@ function MessageView({
               </div>
             </div>
           ) : (
-            <div className="rounded-2xl rounded-br-md bg-[#2a2825] px-4 py-3 text-[15px] leading-7 text-[#ece9e4]">
+            <div className="rounded-2xl rounded-br-md bg-[var(--bg-elevated)] px-4 py-3 text-[15px] leading-7 text-[var(--text-primary)]">
               <div className="whitespace-pre-wrap break-words">{message.contentText}</div>
             </div>
           )}
           {!isEditing ? (
-            <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1 text-xs text-[#807a6f] opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100 max-sm:opacity-100">
+            <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1 text-xs text-[var(--text-muted)] opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100 max-sm:opacity-100">
               <SiblingNav message={message} onNavigate={onNavigateSibling} />
-              <button className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-[#807a6f] transition hover:bg-white/[0.04] hover:text-[#ece9e4]" onClick={() => navigator.clipboard.writeText(message.contentText)}>
+              <button className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-[var(--text-muted)] transition hover:bg-white/[0.04] hover:text-[var(--text-primary)]" onClick={() => navigator.clipboard.writeText(message.contentText)}>
                 <Copy className="h-3.5 w-3.5" /> Copy
               </button>
               {canEdit ? (
                 <button
-                  className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-[#807a6f] transition hover:bg-white/[0.04] hover:text-[#ece9e4]"
+                  className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-[var(--text-muted)] transition hover:bg-white/[0.04] hover:text-[var(--text-primary)]"
                   onClick={() => { setDraft(message.contentText); setIsEditing(true); }}
                   title="Edit and branch"
                 >
@@ -702,14 +805,14 @@ function MessageView({
                 </button>
               ) : null}
               {confirmDelete ? (
-                <span className="inline-flex h-7 items-center gap-1 rounded-md border border-[#d65d5d]/30 bg-[#d65d5d]/10 px-1.5 text-xs text-[#e8a0a0]">
+                <span className="inline-flex h-7 items-center gap-1 rounded-md border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-1.5 text-xs text-[var(--danger)]">
                   Delete?
-                  <button className="rounded px-1.5 font-medium text-[#d65d5d] hover:bg-[#d65d5d]/20" onClick={onDelete}>Yes</button>
-                  <button className="rounded px-1.5 text-[#807a6f] hover:bg-white/[0.06]" onClick={() => setConfirmDelete(false)}>No</button>
+                  <button className="rounded px-1.5 font-medium text-[var(--danger)] hover:bg-[var(--danger)]/20" onClick={onDelete}>Yes</button>
+                  <button className="rounded px-1.5 text-[var(--text-muted)] hover:bg-white/[0.06]" onClick={() => setConfirmDelete(false)}>No</button>
                 </span>
               ) : (
                 <button
-                  className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-[#807a6f] transition hover:bg-[#d65d5d]/10 hover:text-[#e8a0a0]"
+                  className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-[var(--text-muted)] transition hover:bg-[var(--danger)]/10 hover:text-[var(--danger)]"
                   onClick={() => setConfirmDelete(true)}
                   title="Delete message"
                 >
@@ -726,21 +829,21 @@ function MessageView({
   // assistant
   return (
     <div className="group flex gap-3 py-3">
-      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#7aab5e]">
-        <span className="text-[10px] font-bold text-[#1a1a19]">AI</span>
+      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--accent)]">
+        <span className="text-[10px] font-bold text-[var(--bg-base)]">AI</span>
       </div>
       <div className="min-w-0 flex-1 space-y-2">
-        <div className="text-xs font-medium text-[#807a6f]">{message.modelAlias ?? "Assistant"}</div>
+        <div className="text-xs font-medium text-[var(--text-muted)]">{message.modelAlias ?? "Assistant"}</div>
         <ThinkingDisclosure content={reasoningText} />
-        <div className="space-y-3 text-[15px] leading-7 text-[#ece9e4]">
-          {blocks.map((block, index) => <RichBlockView key={index} block={block} />)}
+        <div className="space-y-3 text-[15px] leading-7 text-[var(--text-primary)]">
+          {blocks.map((block, index) => <RichBlockView key={index} block={block} onSubmit={onHtmlSubmit} />)}
         </div>
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pt-1 text-xs text-[#807a6f] opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100 max-sm:opacity-100">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pt-1 text-xs text-[var(--text-muted)] opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100 max-sm:opacity-100">
           <SiblingNav message={message} onNavigate={onNavigateSibling} />
           <CopyButton value={message.contentText} />
           <div className="relative">
             <button
-              className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-[#807a6f] transition hover:bg-white/[0.04] hover:text-[#ece9e4]"
+              className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-[var(--text-muted)] transition hover:bg-white/[0.04] hover:text-[var(--text-primary)]"
               onClick={() => setModelMenuOpen(!modelMenuOpen)}
               title="Regenerate with a different model"
             >
@@ -749,34 +852,34 @@ function MessageView({
             {modelMenuOpen ? (
               <>
                 <button className="fixed inset-0 z-30 cursor-default" aria-label="Close model menu" onClick={() => setModelMenuOpen(false)} />
-                <div className="absolute left-0 z-40 mt-1 max-h-72 w-56 overflow-y-auto rounded-lg border border-white/[0.08] bg-[#232220] p-1 shadow-2xl shadow-black/50">
+                <div className="absolute left-0 z-40 mt-1 max-h-72 w-56 overflow-y-auto rounded-lg border border-white/[0.08] bg-[var(--bg-surface)] p-1 shadow-2xl shadow-black/50">
                   {models.map((model) => (
                     <button
                       key={model.alias}
-                      className="flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-left text-xs text-[#b8b3a8] transition hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-40"
+                      className="flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-left text-xs text-[var(--text-secondary)] transition hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-40"
                       disabled={model.status === "failed"}
                       onClick={() => { onRegenerateWithModel(model.alias); setModelMenuOpen(false); }}
                     >
                       <span className="truncate">{model.alias}</span>
-                      {model.alias === message.modelAlias ? <Check className="h-3 w-3 shrink-0 text-[#7aab5e]" /> : null}
+                      {model.alias === message.modelAlias ? <Check className="h-3 w-3 shrink-0 text-[var(--accent)]" /> : null}
                     </button>
                   ))}
                 </div>
               </>
             ) : null}
           </div>
-          <button className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-[#807a6f] transition hover:bg-white/[0.04] hover:text-[#ece9e4]" onClick={onRegenerate}>
+          <button className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-[var(--text-muted)] transition hover:bg-white/[0.04] hover:text-[var(--text-primary)]" onClick={onRegenerate}>
             <RotateCcw className="h-3.5 w-3.5" /> Regenerate
           </button>
           {confirmDelete ? (
-            <span className="inline-flex h-7 items-center gap-1 rounded-md border border-[#d65d5d]/30 bg-[#d65d5d]/10 px-1.5 text-xs text-[#e8a0a0]">
+            <span className="inline-flex h-7 items-center gap-1 rounded-md border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-1.5 text-xs text-[var(--danger)]">
               Delete?
-              <button className="rounded px-1.5 font-medium text-[#d65d5d] hover:bg-[#d65d5d]/20" onClick={onDelete}>Yes</button>
-              <button className="rounded px-1.5 text-[#807a6f] hover:bg-white/[0.06]" onClick={() => setConfirmDelete(false)}>No</button>
+              <button className="rounded px-1.5 font-medium text-[var(--danger)] hover:bg-[var(--danger)]/20" onClick={onDelete}>Yes</button>
+              <button className="rounded px-1.5 text-[var(--text-muted)] hover:bg-white/[0.06]" onClick={() => setConfirmDelete(false)}>No</button>
             </span>
           ) : (
             <button
-              className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-[#807a6f] transition hover:bg-[#d65d5d]/10 hover:text-[#e8a0a0]"
+              className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-[var(--text-muted)] transition hover:bg-[var(--danger)]/10 hover:text-[var(--danger)]"
               onClick={() => setConfirmDelete(true)}
               title="Delete message"
             >
@@ -899,28 +1002,28 @@ function ModelPicker({ models, value, onChange }: { models: ChatModel[]; value: 
   });
 
   function dot(status: ModelStatus) {
-    if (status === "verified") return "bg-[#7aab5e]";
-    if (status === "failed") return "bg-[#d65d5d]";
-    return "bg-[#e0a83e]";
+    if (status === "verified") return "bg-[var(--accent)]";
+    if (status === "failed") return "bg-[var(--danger)]";
+    return "bg-[var(--warning)]";
   }
 
   return (
     <div className="relative">
       <button
-        className="flex h-9 max-w-[15rem] items-center gap-2 rounded-lg border border-white/[0.08] bg-[#1f1e1c] px-3 text-left text-sm text-[#ece9e4] transition hover:bg-white/[0.04]"
+        className="flex h-9 max-w-[15rem] items-center gap-2 rounded-lg border border-white/[0.08] bg-[var(--bg-input)] px-3 text-left text-sm text-[var(--text-primary)] transition hover:bg-white/[0.04]"
         onClick={() => setOpen(!open)}
       >
-        <Sparkles className="h-4 w-4 shrink-0 text-[#807a6f]" />
+        <Sparkles className="h-4 w-4 shrink-0 text-[var(--text-muted)]" />
         <span className="min-w-0 truncate">{active?.alias ?? "Select model"}</span>
-        <ChevronDown className={cn("h-4 w-4 shrink-0 text-[#807a6f] transition", open && "rotate-180")} />
+        <ChevronDown className={cn("h-4 w-4 shrink-0 text-[var(--text-muted)] transition", open && "rotate-180")} />
       </button>
       {open ? (
         <>
           <button className="fixed inset-0 z-30 cursor-default" aria-label="Close model picker" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 z-40 mt-2 w-[22rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-white/[0.08] bg-[#232220] shadow-2xl shadow-black/50">
+          <div className="absolute right-0 z-40 mt-2 w-[22rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-white/[0.08] bg-[var(--bg-surface)] shadow-2xl shadow-black/50">
             <div className="border-b border-white/[0.06] px-3 py-2">
-              <div className="text-sm font-medium text-[#ece9e4]">Model</div>
-              <div className="text-xs text-[#807a6f]">Choose a model for this chat.</div>
+              <div className="text-sm font-medium text-[var(--text-primary)]">Model</div>
+              <div className="text-xs text-[var(--text-muted)]">Choose a model for this chat.</div>
             </div>
             <div className="max-h-96 overflow-y-auto p-2">
               {sorted.map((model) => {
@@ -931,7 +1034,7 @@ function ModelPicker({ models, value, onChange }: { models: ChatModel[]; value: 
                     key={model.alias}
                     className={cn(
                       "flex w-full items-start gap-3 rounded-lg px-3 py-2 text-left transition",
-                      selected ? "bg-[#7aab5e]/8 text-[#ece9e4]" : "text-[#b8b3a8] hover:bg-white/[0.04]",
+                      selected ? "bg-[var(--accent)]/8 text-[var(--text-primary)]" : "text-[var(--text-secondary)] hover:bg-white/[0.04]",
                       disabled && "cursor-not-allowed opacity-50 hover:bg-transparent"
                     )}
                     disabled={disabled}
@@ -945,12 +1048,12 @@ function ModelPicker({ models, value, onChange }: { models: ChatModel[]; value: 
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center justify-between gap-3">
                         <span className="truncate text-sm font-medium">{model.alias}</span>
-                        {selected ? <Check className="h-4 w-4 shrink-0 text-[#7aab5e]" /> : null}
+                        {selected ? <Check className="h-4 w-4 shrink-0 text-[var(--accent)]" /> : null}
                       </span>
-                      <span className="mt-0.5 block truncate text-xs text-[#807a6f]">
+                      <span className="mt-0.5 block truncate text-xs text-[var(--text-muted)]">
                         {model.provider} / {model.realModel}
                       </span>
-                      <span className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-[#5a554d]">
+                      <span className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-[var(--text-muted)]">
                         <span>{model.status}</span>
                         {model.latencyMs ? <span>{model.latencyMs} ms</span> : null}
                         {model.fallbackCount ? <span>{model.fallbackCount} fallback</span> : null}
@@ -959,7 +1062,7 @@ function ModelPicker({ models, value, onChange }: { models: ChatModel[]; value: 
                   </button>
                 );
               })}
-              {!sorted.length ? <div className="px-3 py-8 text-center text-sm text-[#807a6f]">No enabled models found.</div> : null}
+              {!sorted.length ? <div className="px-3 py-8 text-center text-sm text-[var(--text-muted)]">No enabled models found.</div> : null}
             </div>
           </div>
         </>
@@ -1034,26 +1137,26 @@ function CentralComposer({
       }}
     >
       {dragActive ? (
-        <div className="absolute inset-0 z-10 -m-1 rounded-2xl border-2 border-dashed border-[#7aab5e] bg-[#7aab5e]/10 backdrop-blur-sm" />
+        <div className="absolute inset-0 z-10 -m-1 rounded-2xl border-2 border-dashed border-[var(--accent)] bg-[var(--accent)]/10 backdrop-blur-sm" />
       ) : null}
-      <div className={cn("rounded-2xl border bg-[#232220] px-3 py-2 transition-colors focus-within:border-white/[0.14]", dragActive ? "border-[#7aab5e]" : "border-white/[0.08]")}>
+      <div className={cn("rounded-2xl border bg-[var(--bg-surface)] px-3 py-2 transition-colors focus-within:border-white/[0.14]", dragActive ? "border-[var(--accent)]" : "border-white/[0.08]")}>
         {attachments.length > 0 || uploadingCount > 0 ? (
           <div className="mb-1.5 flex flex-wrap gap-1.5">
             {attachments.map((attachment) => (
-              <span key={attachment.id} className="group inline-flex items-center gap-1.5 rounded-lg border border-white/[0.07] bg-[#1f1e1c] py-1 pl-2 pr-1 text-xs text-[#b8b3a8]">
-                <Paperclip className="h-3 w-3 text-[#807a6f]" />
+              <span key={attachment.id} className="group inline-flex items-center gap-1.5 rounded-lg border border-white/[0.07] bg-[var(--bg-input)] py-1 pl-2 pr-1 text-xs text-[var(--text-secondary)]">
+                <Paperclip className="h-3 w-3 text-[var(--text-muted)]" />
                 <span className="max-w-[10rem] truncate">{attachment.filename}</span>
-                <button className="inline-flex h-4 w-4 items-center justify-center rounded text-[#807a6f] transition hover:bg-white/[0.08] hover:text-[#ece9e4]" onClick={() => onRemoveAttachment(attachment.id)}>
+                <button className="inline-flex h-4 w-4 items-center justify-center rounded text-[var(--text-muted)] transition hover:bg-white/[0.08] hover:text-[var(--text-primary)]" onClick={() => onRemoveAttachment(attachment.id)}>
                   <X className="h-3 w-3" />
                 </button>
               </span>
             ))}
-            {uploadingCount > 0 ? <span className="inline-flex items-center gap-1 rounded-lg border border-white/[0.07] bg-[#1f1e1c] px-2 py-1 text-xs text-[#807a6f]"><Loader2 className="h-3 w-3 animate-spin" /> Uploading…</span> : null}
+            {uploadingCount > 0 ? <span className="inline-flex items-center gap-1 rounded-lg border border-white/[0.07] bg-[var(--bg-input)] px-2 py-1 text-xs text-[var(--text-muted)]"><Loader2 className="h-3 w-3 animate-spin" /> Uploading…</span> : null}
           </div>
         ) : null}
         <textarea
           ref={textareaRef}
-          className="max-h-44 min-h-[3rem] w-full resize-none bg-transparent px-1 py-2 text-[15px] leading-7 text-[#ece9e4] outline-none placeholder:text-[#807a6f]"
+          className="max-h-44 min-h-[3rem] w-full resize-none bg-transparent px-1 py-2 text-[15px] leading-7 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
           placeholder="Frag mich was..."
           value={content}
           rows={1}
@@ -1099,7 +1202,7 @@ function CentralComposer({
               onChange={(event) => { if (event.target.files) onUpload(event.target.files); event.target.value = ""; }}
             />
             <button
-              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/[0.06] px-2 text-xs text-[#807a6f] transition hover:bg-white/[0.04] hover:text-[#ece9e4]"
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/[0.06] px-2 text-xs text-[var(--text-muted)] transition hover:bg-white/[0.04] hover:text-[var(--text-primary)]"
               onClick={() => fileInputRef.current?.click()}
               title="Datei anhängen"
             >
@@ -1108,7 +1211,7 @@ function CentralComposer({
             <ModelPicker models={models} value={modelAlias} onChange={onModelChange} />
             {webSearchAvailable ? (
               <button
-                className={cn("inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/[0.06] px-2 text-xs transition", webSearch ? "bg-[#7aab5e]/10 text-[#9bc480]" : "text-[#807a6f] hover:bg-white/[0.04] hover:text-[#ece9e4]")}
+                className={cn("inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/[0.06] px-2 text-xs transition", webSearch ? "bg-[var(--accent)]/10 text-[var(--accent-text)]" : "text-[var(--text-muted)] hover:bg-white/[0.04] hover:text-[var(--text-primary)]")}
                 onClick={onToggleWebSearch}
               >
                 <Search className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Web</span>
@@ -1118,11 +1221,11 @@ function CentralComposer({
           <div className="flex items-center gap-1.5">
             {voiceSupported ? (
               <button
-                className={cn("inline-flex h-8 w-8 items-center justify-center rounded-lg border text-xs transition", isListening ? "border-[#d65d5d]/30 bg-[#d65d5d]/10 text-[#e8a0a0]" : "border-white/[0.06] text-[#807a6f] hover:bg-white/[0.04] hover:text-[#ece9e4]")}
+                className={cn("inline-flex h-8 w-8 items-center justify-center rounded-lg border text-xs transition", isListening ? "border-[var(--danger)]/30 bg-[var(--danger)]/10 text-[var(--danger)]" : "border-white/[0.06] text-[var(--text-muted)] hover:bg-white/[0.04] hover:text-[var(--text-primary)]")}
                 onClick={onToggleVoice}
                 title={isListening ? "Spracheingabe stoppen" : "Spracheingabe starten"}
               >
-                {isListening ? <span className="h-3 w-3 animate-pulse rounded-full bg-[#d65d5d]" /> : <Mic className="h-3.5 w-3.5" />}
+                {isListening ? <span className="h-3 w-3 animate-pulse rounded-full bg-[var(--danger)]" /> : <Mic className="h-3.5 w-3.5" />}
               </button>
             ) : null}
             {isRunning ? (
@@ -1314,6 +1417,8 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
     loadThreads().catch(() => undefined);
     loadModels().catch((err: Error) => setError(err.message));
     loadTools().catch((err: Error) => setError(err.message));
+    // Initial discovery intentionally runs only once when the client mounts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -1350,6 +1455,8 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+    // resetChat intentionally reads the current component state for the shortcut.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages]);
 
   async function sendMessage(regenerate = false, explicitText?: string, options?: { parentMessageId?: string | null; attachments?: Attachment[]; overrideModelAlias?: string }) {
@@ -1655,7 +1762,7 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
 
   return (
     <PageShell flush>
-      <div className="flex h-[calc(100vh-3.5rem)] overflow-hidden bg-[#1a1a19]">
+      <div className="flex h-[calc(100vh-3.5rem)] overflow-hidden bg-[var(--bg-base)]">
         {/* Mobile thread history overlay */}
         {mobileHistoryOpen ? (
           <div
@@ -1665,7 +1772,7 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
         ) : null}
         <aside
           className={cn(
-            "shrink-0 overflow-hidden border-r border-white/[0.05] bg-[#1f1e1c] transition-[width,transform] duration-200 ease-out",
+            "shrink-0 overflow-hidden border-r border-white/[0.05] bg-[var(--bg-input)] transition-[width,transform] duration-200 ease-out",
             // Desktop: static column
             "md:relative md:z-auto md:block md:translate-x-0",
             sessionOpen ? "md:w-72" : "md:w-14",
@@ -1698,11 +1805,11 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
             {sessionOpen || mobileHistoryOpen ? (
               <>
                 <div className="px-3 pb-2">
-                  <div className="flex h-9 items-center gap-2 rounded-lg border border-white/[0.06] bg-[#1f1e1c] px-3 text-[#807a6f]">
+                  <div className="flex h-9 items-center gap-2 rounded-lg border border-white/[0.06] bg-[var(--bg-input)] px-3 text-[var(--text-muted)]">
                     <Search className="h-4 w-4 shrink-0" />
                     <input
                       ref={searchInputRef}
-                      className="min-w-0 flex-1 bg-transparent text-sm text-[#b8b3a8] outline-none placeholder:text-[#5a554d]"
+                      className="min-w-0 flex-1 bg-transparent text-sm text-[var(--text-secondary)] outline-none placeholder:text-[var(--text-muted)]"
                       placeholder="Search chats"
                       value={historyFilter}
                       suppressHydrationWarning
@@ -1722,7 +1829,7 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
                           }}
                         >
                           <input
-                            className="h-8 w-full rounded-md border border-white/[0.08] bg-[#1f1e1c] px-2 text-sm text-[#ece9e4] outline-none"
+                            className="h-8 w-full rounded-md border border-white/[0.08] bg-[var(--bg-input)] px-2 text-sm text-[var(--text-primary)] outline-none"
                             value={renameTitle}
                             autoFocus
                             suppressHydrationWarning
@@ -1740,24 +1847,24 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
                           <button
                             className={cn(
                               "w-full rounded-lg px-3 py-2 pr-9 text-left transition hover:bg-white/[0.04]",
-                              activeThreadId === thread.id ? "bg-[#7aab5e]/8 text-[#7aab5e]" : "text-[#807a6f]"
+                              activeThreadId === thread.id ? "bg-[var(--accent)]/8 text-[var(--accent)]" : "text-[var(--text-muted)]"
                             )}
                             onClick={() => loadThread(thread.id).catch((err: Error) => setError(err.message))}
                           >
                             <div className="line-clamp-2 text-sm leading-5">{thread.title}</div>
-                            <div className="mt-0.5 text-[11px] text-[#5a554d]">{formatDate(thread.updatedAt)}</div>
+                            <div className="mt-0.5 text-[11px] text-[var(--text-muted)]">{formatDate(thread.updatedAt)}</div>
                           </button>
                           <button
-                            className="absolute right-1.5 top-1.5 hidden h-7 w-7 items-center justify-center rounded-md text-[#807a6f] transition hover:bg-white/[0.06] hover:text-[#ece9e4] group-hover:flex"
+                            className="absolute right-1.5 top-1.5 hidden h-7 w-7 items-center justify-center rounded-md text-[var(--text-muted)] transition hover:bg-white/[0.06] hover:text-[var(--text-primary)] group-hover:flex"
                             title="Thread actions"
                             onClick={() => setOpenThreadMenu(openThreadMenu === thread.id ? null : thread.id)}
                           >
                             <MoreHorizontal className="h-4 w-4" />
                           </button>
                           {openThreadMenu === thread.id ? (
-                            <div className="absolute right-1.5 top-9 z-20 w-36 overflow-hidden rounded-lg border border-white/[0.08] bg-[#2a2825] shadow-2xl shadow-black/40">
+                            <div className="absolute right-1.5 top-9 z-20 w-36 overflow-hidden rounded-lg border border-white/[0.08] bg-[var(--bg-elevated)] shadow-2xl shadow-black/40">
                               <button
-                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#b8b3a8] hover:bg-white/[0.05]"
+                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[var(--text-secondary)] hover:bg-white/[0.05]"
                                 onClick={() => {
                                   setRenamingThreadId(thread.id);
                                   setRenameTitle(thread.title);
@@ -1767,7 +1874,7 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
                                 <Pencil className="h-3.5 w-3.5" /> Rename
                               </button>
                               <button
-                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#b8b3a8] hover:bg-white/[0.05]"
+                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[var(--text-secondary)] hover:bg-white/[0.05]"
                                 onClick={() => archiveThread(thread.id).catch((err: Error) => setError(err.message))}
                               >
                                 <Archive className="h-3.5 w-3.5" /> Archive
@@ -1778,18 +1885,18 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
                       )}
                     </div>
                   ))}
-                  {!filteredThreads.length ? <div className="px-3 py-8 text-center text-sm text-[#5a554d]">No chats found.</div> : null}
+                  {!filteredThreads.length ? <div className="px-3 py-8 text-center text-sm text-[var(--text-muted)]">No chats found.</div> : null}
                 </div>
               </>
             ) : (
               <div className="hidden space-y-2 px-2 md:block">
-                <button className="flex h-10 w-10 items-center justify-center rounded-lg text-[#807a6f] transition hover:bg-white/[0.04] hover:text-[#ece9e4]" title="New chat" onClick={resetChat}>
+                <button className="flex h-10 w-10 items-center justify-center rounded-lg text-[var(--text-muted)] transition hover:bg-white/[0.04] hover:text-[var(--text-primary)]" title="New chat" onClick={resetChat}>
                   <Plus className="h-4 w-4" />
                 </button>
                 {threads.slice(0, 8).map((thread) => (
                   <button
                     key={thread.id}
-                    className={cn("flex h-10 w-10 items-center justify-center rounded-lg text-xs transition hover:bg-white/[0.04]", activeThreadId === thread.id ? "bg-[#7aab5e]/8 text-[#7aab5e]" : "text-[#807a6f]")}
+                    className={cn("flex h-10 w-10 items-center justify-center rounded-lg text-xs transition hover:bg-white/[0.04]", activeThreadId === thread.id ? "bg-[var(--accent)]/8 text-[var(--accent)]" : "text-[var(--text-muted)]")}
                     title={thread.title}
                     onClick={() => {
                       setSessionOpen(true);
@@ -1805,7 +1912,7 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
         </aside>
 
         <main className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-10 flex min-h-14 items-center justify-between gap-2 border-b border-white/[0.05] bg-[#1a1a19]/80 px-4 backdrop-blur-sm md:px-6">
+          <header className="sticky top-0 z-10 flex min-h-14 items-center justify-between gap-2 border-b border-white/[0.05] bg-[var(--bg-base)]/80 px-4 backdrop-blur-sm md:px-6">
             <div className="flex min-w-0 items-center gap-2">
               <Button variant="ghost" className="h-8 w-8 shrink-0 rounded-lg px-0 md:hidden" onClick={() => setMobileHistoryOpen(true)}>
                 <Menu className="h-4 w-4" />
@@ -1819,8 +1926,8 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
                 {sessionOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
               </Button>
               <div className="min-w-0">
-                <div className="truncate text-sm font-medium text-[#ece9e4]">{activeThread?.title ?? "New Chat"}</div>
-                <div className="truncate text-xs text-[#807a6f] hidden sm:block">{activeModel ? `${activeModel.provider} / ${activeModel.realModel}` : "Choose a model"}</div>
+                <div className="truncate text-sm font-medium text-[var(--text-primary)]">{activeThread?.title ?? "New Chat"}</div>
+                <div className="truncate text-xs text-[var(--text-muted)] hidden sm:block">{activeModel ? `${activeModel.provider} / ${activeModel.realModel}` : "Choose a model"}</div>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -1828,7 +1935,7 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
               {activeThreadId ? (
                 <Button
                   variant="ghost"
-                  className="h-9 shrink-0 rounded-lg border border-white/[0.06] px-2.5 text-xs text-[#807a6f] hover:bg-white/[0.04] hover:text-[#ece9e4]"
+                  className="h-9 shrink-0 rounded-lg border border-white/[0.06] px-2.5 text-xs text-[var(--text-muted)] hover:bg-white/[0.04] hover:text-[var(--text-primary)]"
                   onClick={exportThreadMarkdown}
                   title="Export thread as Markdown"
                 >
@@ -1845,10 +1952,10 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
                 <div className="w-full max-w-[760px]">
                   {/* Welcome heading */}
                   <div className="mb-6 text-center">
-                    <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-[#ece9e4]">
+                    <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-[var(--text-primary)]">
                       {greetingForHour(new Date().getHours())}
                     </h1>
-                    <p className="mt-1.5 text-sm text-[#807a6f]">
+                    <p className="mt-1.5 text-sm text-[var(--text-muted)]">
                       Was möchtest du heute machen?
                     </p>
                   </div>
@@ -1884,7 +1991,7 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
                     {buildSuggestions(suggestionSeed).map((suggestion) => (
                       <button
                         key={`${suggestion.category}-${suggestion.title}`}
-                        className="rounded-full border border-white/[0.08] bg-[#232220] px-3.5 py-2 text-xs text-[#b8b3a8] transition-colors duration-150 hover:border-white/[0.16] hover:bg-[#2a2825] hover:text-[#ece9e4]"
+                        className="rounded-full border border-white/[0.08] bg-[var(--bg-surface)] px-3.5 py-2 text-xs text-[var(--text-secondary)] transition-colors duration-150 hover:border-white/[0.16] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]"
                         onClick={() => sendMessage(false, suggestion.prompt).catch((err: Error) => setError(err.message))}
                       >
                         {suggestion.title}
@@ -1893,7 +2000,7 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
                   </div>
                   <div className="mt-3 flex justify-center">
                     <button
-                      className="text-xs text-[#5a554d] transition hover:text-[#807a6f]"
+                      className="text-xs text-[var(--text-muted)] transition hover:text-[var(--text-muted)]"
                       onClick={() => setSuggestionSeed(Date.now() & 0xffffffff)}
                     >
                       Andere Vorschläge
@@ -1903,7 +2010,7 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
               </div>
             ) : (
             <div className="mx-auto flex min-h-full max-w-[1050px] flex-col px-4 md:px-6">
-              {error ? <div className="mt-4 rounded-lg border border-[#d65d5d]/25 bg-[#d65d5d]/10 p-3 text-sm text-[#e8a0a0]">{error}</div> : null}
+              {error ? <div className="mt-4 rounded-lg border border-[var(--danger)]/25 bg-[var(--danger)]/10 p-3 text-sm text-[var(--danger)]">{error}</div> : null}
               {messages.map((message) => {
                 const runId = typeof message.metadata?.runId === "string" ? message.metadata.runId : undefined;
                 const messageSteps = runId ? steps.filter((step) => step.runId === runId) : [];
@@ -1920,13 +2027,14 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
                     onEditSave={(text) => editMessage(message, text)}
                     onDelete={() => deleteMessage(message.id).catch((err: Error) => setError(err.message))}
                     onNavigateSibling={() => { if (activeThreadId) navigateSibling(activeThreadId).catch(() => undefined); }}
+                    onHtmlSubmit={(data) => sendMessage(false, data).catch((err: Error) => setError(err.message))}
                   />
                 );
               })}
               {showRunning ? (
                 <div className="flex gap-3 py-3">
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#7aab5e]">
-                    <span className="text-[10px] font-bold text-[#1a1a19]">AI</span>
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--accent)]">
+                    <span className="text-[10px] font-bold text-[var(--bg-base)]">AI</span>
                   </div>
                   <div className="min-w-0 flex-1 space-y-3">
                     {/* Live agent activity indicator */}
@@ -1938,25 +2046,25 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
                             className={cn(
                               "inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-colors",
                               step.status === "completed"
-                                ? "border-white/[0.06] bg-white/[0.02] text-[#807a6f]"
+                                ? "border-white/[0.06] bg-white/[0.02] text-[var(--text-muted)]"
                                 : step.status === "failed"
-                                ? "border-[#d65d5d]/20 bg-[#d65d5d]/8 text-[#e08585]"
-                                : "border-[#7aab5e]/15 bg-[#7aab5e]/8 text-[#9bc480]"
+                                ? "border-[var(--danger)]/20 bg-[var(--danger)]/8 text-[var(--danger)]"
+                                : "border-[var(--accent)]/15 bg-[var(--accent)]/8 text-[var(--accent-text)]"
                             )}
                           >
                             {step.status === "running" && (
-                              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#7aab5e]" />
+                              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--accent)]" />
                             )}
                             {step.status === "completed" && <Check className="h-3 w-3" />}
                             {stepLabel(step)}
-                            {step.latencyMs ? <span className="text-[#5a554d]">{durationLabel(step.latencyMs)}</span> : null}
+                            {step.latencyMs ? <span className="text-[var(--text-muted)]">{durationLabel(step.latencyMs)}</span> : null}
                           </span>
                         ))}
                       </div>
                     )}
                     {visibleRunningSteps.length === 0 && (
-                      <div className="flex items-center gap-2 text-sm text-[#807a6f]">
-                        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#7aab5e]" />
+                      <div className="flex items-center gap-2 text-sm text-[var(--text-muted)]">
+                        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--accent)]" />
                         Denke nach...
                       </div>
                     )}
@@ -1964,7 +2072,7 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
                     {streamingText ? (
                       <>
                         <MarkdownBlock content={streamingText} />
-                        <span className="inline-block h-4 w-2 translate-y-0.5 animate-pulse rounded-sm bg-[#7aab5e]" />
+                        <span className="inline-block h-4 w-2 translate-y-0.5 animate-pulse rounded-sm bg-[var(--accent)]" />
                       </>
                     ) : null}
                   </div>
@@ -1976,7 +2084,7 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
 
           {!isWelcomeState ? (
           <div
-            className="sticky bottom-0 bg-[#1a1a19] px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 md:px-6 md:pb-5"
+            className="sticky bottom-0 bg-[var(--bg-base)] px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 md:px-6 md:pb-5"
             onDragOver={(event) => { if (event.dataTransfer.types.includes("Files")) { event.preventDefault(); setDragActive(true); } }}
             onDragLeave={() => setDragActive(false)}
             onDrop={(event) => {
@@ -1987,26 +2095,26 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
             }}
           >
             {dragActive ? (
-              <div className="absolute inset-0 z-10 m-2 rounded-xl border-2 border-dashed border-[#7aab5e] bg-[#7aab5e]/10 backdrop-blur-sm" />
+              <div className="absolute inset-0 z-10 m-2 rounded-xl border-2 border-dashed border-[var(--accent)] bg-[var(--accent)]/10 backdrop-blur-sm" />
             ) : null}
-            <div className={cn("mx-auto max-w-[1050px] rounded-xl border bg-[#232220] px-3 py-2 transition-colors focus-within:border-white/[0.14]", dragActive ? "border-[#7aab5e]" : "border-white/[0.07]")}>
+            <div className={cn("mx-auto max-w-[1050px] rounded-xl border bg-[var(--bg-surface)] px-3 py-2 transition-colors focus-within:border-white/[0.14]", dragActive ? "border-[var(--accent)]" : "border-white/[0.07]")}>
               {attachments.length > 0 || uploadingCount > 0 ? (
                 <div className="mb-1.5 flex flex-wrap gap-1.5">
                   {attachments.map((attachment) => (
-                    <span key={attachment.id} className="group inline-flex items-center gap-1.5 rounded-lg border border-white/[0.07] bg-[#1f1e1c] py-1 pl-2 pr-1 text-xs text-[#b8b3a8]">
-                      <Paperclip className="h-3 w-3 text-[#807a6f]" />
+                    <span key={attachment.id} className="group inline-flex items-center gap-1.5 rounded-lg border border-white/[0.07] bg-[var(--bg-input)] py-1 pl-2 pr-1 text-xs text-[var(--text-secondary)]">
+                      <Paperclip className="h-3 w-3 text-[var(--text-muted)]" />
                       <span className="max-w-[10rem] truncate">{attachment.filename}</span>
-                      <button className="inline-flex h-4 w-4 items-center justify-center rounded text-[#807a6f] transition hover:bg-white/[0.08] hover:text-[#ece9e4]" onClick={() => removeAttachment(attachment.id)}>
+                      <button className="inline-flex h-4 w-4 items-center justify-center rounded text-[var(--text-muted)] transition hover:bg-white/[0.08] hover:text-[var(--text-primary)]" onClick={() => removeAttachment(attachment.id)}>
                         <X className="h-3 w-3" />
                       </button>
                     </span>
                   ))}
-                  {uploadingCount > 0 ? <span className="inline-flex items-center gap-1 rounded-lg border border-white/[0.07] bg-[#1f1e1c] px-2 py-1 text-xs text-[#807a6f]"><Loader2 className="h-3 w-3 animate-spin" /> Uploading…</span> : null}
+                  {uploadingCount > 0 ? <span className="inline-flex items-center gap-1 rounded-lg border border-white/[0.07] bg-[var(--bg-input)] px-2 py-1 text-xs text-[var(--text-muted)]"><Loader2 className="h-3 w-3 animate-spin" /> Uploading…</span> : null}
                 </div>
               ) : null}
               <textarea
                 ref={textareaRef}
-                className="max-h-44 min-h-[2.5rem] w-full resize-none bg-transparent px-1 py-2 text-sm leading-6 text-[#ece9e4] outline-none placeholder:text-[#807a6f]"
+                className="max-h-44 min-h-[2.5rem] w-full resize-none bg-transparent px-1 py-2 text-sm leading-6 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
                 placeholder="Send a message..."
                 value={content}
                 rows={1}
@@ -2051,7 +2159,7 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
                     onChange={(event) => { if (event.target.files) uploadFiles(event.target.files).catch((err: Error) => setError(err.message)); event.target.value = ""; }}
                   />
                   <button
-                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/[0.06] px-2 text-xs text-[#807a6f] transition hover:bg-white/[0.04] hover:text-[#ece9e4]"
+                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/[0.06] px-2 text-xs text-[var(--text-muted)] transition hover:bg-white/[0.04] hover:text-[var(--text-primary)]"
                     onClick={() => fileInputRef.current?.click()}
                     title="Attach file"
                   >
@@ -2059,7 +2167,7 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
                   </button>
                   {webSearchAvailable ? (
                     <button
-                      className={cn("inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/[0.06] px-2 text-xs transition", webSearch ? "bg-[#7aab5e]/10 text-[#9bc480]" : "text-[#807a6f] hover:bg-white/[0.04] hover:text-[#ece9e4]")}
+                      className={cn("inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/[0.06] px-2 text-xs transition", webSearch ? "bg-[var(--accent)]/10 text-[var(--accent-text)]" : "text-[var(--text-muted)] hover:bg-white/[0.04] hover:text-[var(--text-primary)]")}
                       onClick={() => setWebSearch(!webSearch)}
                     >
                       <Search className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Search</span>
@@ -2069,11 +2177,11 @@ export default function ChatPageClient({ initialModels }: { initialModels: ChatM
                 <div className="flex items-center gap-1.5">
                   {voiceSupported ? (
                     <button
-                      className={cn("inline-flex h-8 w-8 items-center justify-center rounded-lg border text-xs transition", isListening ? "border-[#d65d5d]/30 bg-[#d65d5d]/10 text-[#e8a0a0]" : "border-white/[0.06] text-[#807a6f] hover:bg-white/[0.04] hover:text-[#ece9e4]")}
+                      className={cn("inline-flex h-8 w-8 items-center justify-center rounded-lg border text-xs transition", isListening ? "border-[var(--danger)]/30 bg-[var(--danger)]/10 text-[var(--danger)]" : "border-white/[0.06] text-[var(--text-muted)] hover:bg-white/[0.04] hover:text-[var(--text-primary)]")}
                       onClick={toggleVoiceInput}
                       title={isListening ? "Stop voice input" : "Start voice input"}
                     >
-                      {isListening ? <span className="h-3 w-3 animate-pulse rounded-full bg-[#d65d5d]" /> : <Mic className="h-3.5 w-3.5" />}
+                      {isListening ? <span className="h-3 w-3 animate-pulse rounded-full bg-[var(--danger)]" /> : <Mic className="h-3.5 w-3.5" />}
                     </button>
                   ) : null}
                   {isRunning ? (

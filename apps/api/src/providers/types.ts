@@ -1,4 +1,4 @@
-import type { InternalChatRequest, ModelRouteTarget, ProviderConfig, ProviderResponse } from "@ai-gateway/core";
+import type { InternalChatRequest, ModelRouteTarget, ProviderConfig, ProviderResponse } from "@model-console/core";
 
 export interface ProviderAdapter {
   name: string;

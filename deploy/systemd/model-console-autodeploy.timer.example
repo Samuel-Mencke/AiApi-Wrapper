@@ -1,0 +1,13 @@
+[Unit]
+Description=Check the main branch for verified deployments
+Requires=model-console-autodeploy.service
+
+[Timer]
+OnBootSec=45s
+OnUnitActiveSec=2min
+AccuracySec=10s
+Unit=model-console-autodeploy.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target

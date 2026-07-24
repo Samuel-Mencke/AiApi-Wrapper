@@ -1,5 +1,5 @@
 import { nanoid } from "nanoid";
-import type { InternalChatRequest, InternalMessage, ProviderResponse } from "@ai-gateway/core";
+import type { InternalChatRequest, InternalMessage, ProviderResponse } from "@model-console/core";
 
 export interface ResponseUsage {
   input_tokens?: number;
@@ -452,13 +452,13 @@ function responseExtraBody(
    * Translate Codex reasoning settings to Z.AI's
    * native thinking configuration.
    */
-  if (effort === "none") {
+  if (effort === "high") {
     extra.thinking = {
-      type: "disabled"
+      type: "enabled"
     };
   } else if (effort) {
     extra.thinking = {
-      type: "enabled"
+      type: "disabled"
     };
   } else if (request.thinking !== undefined) {
     extra.thinking = request.thinking;

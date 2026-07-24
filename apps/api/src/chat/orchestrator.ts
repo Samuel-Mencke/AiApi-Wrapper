@@ -1,5 +1,5 @@
-import { estimateCostUsd } from "@ai-gateway/core/pricing";
-import type { InternalMessage } from "@ai-gateway/core";
+import { estimateCostUsd } from "@model-console/core/pricing";
+import type { InternalMessage } from "@model-console/core";
 import { nanoid } from "nanoid";
 import { eq } from "drizzle-orm";
 import { db } from "../db/client.js";
@@ -11,6 +11,7 @@ import { executeChatTool, openAiToolDefinitions } from "./tools.js";
 import { generateFunctionPlotPoints } from "./function-plot.js";
 import { parseRichBlocksFromText, richBlocksSchema, type RichBlocks } from "./rich-blocks.js";
 import { CHAT_API_KEY_ID, ensureInternalChatApiKey } from "./internal-api-key.js";
+import { applyUncensoredTransform, isUncensoredAlias, uncensoredInstructions } from "../middleware/uncensored.js";
 
 export type ChatRunEvent =
   | { type: "run"; run: unknown }
@@ -52,12 +53,32 @@ Du antwortest **Samuel Mencke** — 15 Jahre alt, Entwickler aus Deutschland (9.
 - Deutsch standardmäßig, Englisch wenn Samuel wechselt
 
 ## Rich Content
-Für erweiterte Darstellung kannst du einen fenced \`\`\`rich_blocks JSON-Block anhängen. Typen: markdown, code, table, chart (bar/line/pie/scatter), function_plot, math.
+Für erweiterte Darstellung kannst du einen fenced \`\`\`rich_blocks JSON-Block anhängen. Typen: markdown, code, html, table, chart (bar/line/pie/scatter), function_plot, math.
 Nutze das nur wenn es wirklich hilft — nicht für einfache Antworten erzwingen.
+
+## HTML-Generierung (interaktive UI)
+Du kannst **komplette HTML-Blöcke** generieren — mit inline CSS, SVG, MathML und JavaScript. Diese werden live in der Chat-UI gerendert (in einer sicheren iframe-Sandbox). Verwende dafür einen \`html\` Block im rich_blocks JSON:
+
+\`\`\`rich_blocks
+{"blocks":[{"type":"html","title":"Tic-Tac-Toe","content":"<!DOCTYPE html><html><head><style>...</style></head><body>...</body></html>"}]}
+\`\`\`
+
+**Zwei Modi:**
+1. **Inline** (Standard): Das HTML erscheint als Block in der Chat-Nachricht. Gut für kleine Widgets, Spielbretter, Tabellen.
+2. **Fullscreen**: Setze \`"fullscreen": true\` im html-Block. Das HTML ersetzt die **komplette Chat-Fläche** (alles rechts der Sidebar) — wie eine eigene App. Der Chat-Verlauf verschwindet, nur deine HTML-App ist sichtbar plus ein kleiner Composer unten. Nutze das für ganze Apps: 3D-Chats, Wikipedia-Klone, Code-Editoren, Dashboards. Wenn der Nutzer "mache es funktional" oder "ändere X" sagt, aktualisiere das fullscreen HTML mit deinen vorherigen Änderungen inkorporiert.
+
+**Regeln für HTML-Blöcke:**
+- Schreibe vollständige HTML-Dokumente (\`<html><head><body>\`) mit inline \`<style>\` und \`<script>\`
+- Keine externen Ressourcen (keine CDN-Links, keine externen Bilder, keine \`src=\` Attribute)
+- JavaScript: nur Vanilla JS, keine externen Libraries
+- Dunkles Theme verwenden (background: #1a1a19, color: #ece9e4) um zum Chat-Design zu passen
+- Interaktive Formulare: \`<form>\` Elemente werden vom Chat abgefangen — wenn ein Nutzer ein Formular abschickt, wird die Eingabe als neue Chat-Nachricht an dich gesendet. Nutze das für interaktive Tools, Spiele, Umfragen etc.
+- **Kontext**: Du kannst deine vorherigen HTML-Blöcke sehen — sie sind in deinem Kontext als [HTML BLOCK: title] enthalten. Wenn der Nutzer Änderungen wünscht, übernimm deinen vorherigen Code und modifiziere ihn. Verliere niemals den bisherigen Fortschritt.
+- Bei fullscreen: mache \`html, body { height: 100%; margin: 0; }\` damit die App den ganzen Bereich ausfüllt
 
 ## Sicherheit
 - Niemals API-Keys, Secrets oder Tokens preisgeben
-- Kein rohes HTML, iframes oder externe Scripts als darstellbaren Content
+- Keine externen Scripts, kein Tracking, keine externen CDN-Ressourcen in HTML-Blöcken
 - Sichtbares Denken kommt vom Provider-Stream — erfinde kein hidden reasoning`;
 
 function now() {
@@ -101,7 +122,31 @@ function titleFrom(content: string) {
 
 function textForContext(message: typeof chatMessages.$inferSelect) {
   const metadata = parseJson(message.metadataJson, {}) as { compactSummary?: string };
-  return metadata.compactSummary || message.contentText;
+  if (metadata.compactSummary) return metadata.compactSummary;
+
+  // For assistant messages, include the content text AND a summary of rich blocks
+  // (especially HTML blocks) so the LLM has context about what it previously built.
+  const text = message.contentText;
+  if (message.role !== "assistant") return text;
+
+  try {
+    const blocks = JSON.parse(message.contentBlocksJson || '{"blocks":[]}') as { blocks: Array<Record<string, unknown>> };
+    const htmlBlocks = blocks.blocks.filter((b) => b.type === "html");
+    if (!htmlBlocks.length) return text;
+
+    const blockSummaries = htmlBlocks.map((b) => {
+      const title = typeof b.title === "string" ? b.title : "HTML";
+      const content = typeof b.content === "string" ? b.content : "";
+      const fullscreen = b.fullscreen === true;
+      // Include a truncated version of the HTML so the LLM can iterate on it
+      const truncated = content.length > 4000 ? content.slice(0, 4000) + "\n<!-- ... truncated ... -->" : content;
+      return `[${fullscreen ? "FULLSCREEN " : ""}HTML BLOCK: ${title}]\n${truncated}\n[/HTML BLOCK]`;
+    }).join("\n\n");
+
+    return text + (text ? "\n\n" : "") + blockSummaries;
+  } catch {
+    return text;
+  }
 }
 
 function normalizeBlocks(blocks: RichBlocks): RichBlocks {
@@ -124,8 +169,13 @@ function normalizeBlocks(blocks: RichBlocks): RichBlocks {
   };
 }
 
-function buildContext(threadId: string, fromMessageId?: string): { messages: InternalMessage[]; compacted: boolean } {
-  // When fromMessageId is given (edit/branch case), walk the parent-chain from there to root.
+function buildContext(threadId: string, fromMessageId?: string, modelAlias?: string): { messages: InternalMessage[]; compacted: boolean } {
+  // When using uncensored mode (-u suffix), replace the system prompt
+  // and neutralize trigger keywords in all messages.
+  const uncensored = modelAlias ? isUncensoredAlias(modelAlias) : false;
+  const systemPrompt = uncensored ? uncensoredInstructions() : assistantSystemPrompt;
+
+  // When using fromMessageId (edit/branch case), walk the parent-chain from there to root.
   // Otherwise fall back to linear chronological order (root thread).
   let ordered: typeof chatMessages.$inferSelect[];
   if (fromMessageId) {
@@ -147,8 +197,8 @@ function buildContext(threadId: string, fromMessageId?: string): { messages: Int
   }
   const compacted = ordered.length > env.CHAT_CONTEXT_MAX_MESSAGES;
   const kept = ordered.slice(-env.CHAT_CONTEXT_MAX_MESSAGES);
-  const messages: InternalMessage[] = [
-    { role: "system", content: assistantSystemPrompt },
+  let messages: InternalMessage[] = [
+    { role: "system", content: systemPrompt },
     ...kept
       .filter((message) => message.role === "user" || message.role === "assistant" || message.role === "tool")
       .map((message) => {
@@ -161,6 +211,10 @@ function buildContext(threadId: string, fromMessageId?: string): { messages: Int
         };
       })
   ];
+  // Apply uncensored transform (keyword neutralization + strip any extra system msgs)
+  if (uncensored) {
+    messages = applyUncensoredTransform(messages);
+  }
   return { messages, compacted };
 }
 
@@ -455,7 +509,7 @@ export function createChatRunStream(input: {
         db.insert(chatRuns).values(run).run();
         emitSse(controller, { type: "run", run });
 
-        const context = buildContext(threadId, userMessage.id);
+        const context = buildContext(threadId, userMessage.id, input.modelAlias);
         if (context.compacted) {
           const compact = createStep(runId, "compact", "Context compacted", { maxMessages: env.CHAT_CONTEXT_MAX_MESSAGES }, "completed");
           emitSse(controller, { type: "step", step: serializeStep(compact) });

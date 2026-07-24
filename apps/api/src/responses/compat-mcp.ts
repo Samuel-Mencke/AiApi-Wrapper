@@ -1,5 +1,5 @@
 import { nanoid } from "nanoid";
-import type { InternalChatRequest, InternalMessage, ProviderResponse } from "@ai-gateway/core";
+import type { InternalChatRequest, InternalMessage, ProviderResponse } from "@model-console/core";
 import * as legacy from "./compat.js";
 import { flattenNamespacedToolName, splitNamespacedToolName } from "./mcp-namespace.js";
 

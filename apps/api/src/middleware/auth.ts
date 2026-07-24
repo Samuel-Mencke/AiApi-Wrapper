@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { eq } from "drizzle-orm";
-import { GatewayError } from "@ai-gateway/core/errors";
+import { GatewayError } from "@model-console/core/errors";
 import { db, sqlite } from "../db/client.js";
 import { apiKeys } from "../db/schema.js";
 import { env } from "../env.js";
@@ -21,11 +21,8 @@ export function hashApiKey(key: string): string {
   return crypto.createHash("sha256").update(key).digest("hex");
 }
 
-const SESSION_COOKIE = "ai_gateway_admin";
+const SESSION_COOKIE = "model_console_admin";
 const SESSION_TTL_SECONDS = 60 * 60 * 12;
-const FALLBACK_ADMIN_PASSWORD_HASH =
-  "pbkdf2_sha256$210000$3f092f0bfd2352aa8d7e560e3a87eef9$c2ef61a14251c8e9799dc1843db42efaa065444dea51ac9bc3bc2f6ab29b8da0";
-
 function bearerToken(request: FastifyRequest): string | null {
   const header = request.headers.authorization;
   if (!header?.startsWith("Bearer ")) {
@@ -59,7 +56,7 @@ function timingSafeEqual(a: string, b: string): boolean {
 }
 
 export function verifyAdminPassword(password: string): boolean {
-  const encoded = env.ADMIN_PASSWORD_HASH ?? FALLBACK_ADMIN_PASSWORD_HASH;
+  const encoded = env.ADMIN_PASSWORD_HASH;
   const [scheme, iterationsValue, salt, expected] = encoded.split("$");
   if (scheme !== "pbkdf2_sha256" || !iterationsValue || !salt || !expected) return false;
   const iterations = Number(iterationsValue);
@@ -79,26 +76,28 @@ function secondsUntilNextMonth(): number {
   return Math.max(1, Math.ceil((nextMonth.getTime() - Date.now()) / 1000));
 }
 
+function cookieDomainAttribute(): string {
+  return env.ADMIN_COOKIE_DOMAIN ? `; Domain=${env.ADMIN_COOKIE_DOMAIN}` : "";
+}
+
 export function setAdminSession(reply: FastifyReply): void {
   const expiresAt = Date.now() + SESSION_TTL_SECONDS * 1000;
   const payload = base64Url(JSON.stringify({ sub: env.ADMIN_USERNAME, exp: expiresAt }));
   const token = `${payload}.${signSession(payload)}`;
   const secure = env.PUBLIC_BASE_URL.startsWith("https://");
-  const domain = new URL(env.PUBLIC_BASE_URL).hostname.endsWith("samuelm.de") ? "; Domain=.samuelm.de" : "";
   reply.header(
     "Set-Cookie",
     `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; Max-Age=${SESSION_TTL_SECONDS}; HttpOnly; SameSite=Lax${
       secure ? "; Secure" : ""
-    }${domain}`
+    }${cookieDomainAttribute()}`
   );
 }
 
 export function clearAdminSession(reply: FastifyReply): void {
   const secure = env.PUBLIC_BASE_URL.startsWith("https://");
-  const domain = new URL(env.PUBLIC_BASE_URL).hostname.endsWith("samuelm.de") ? "; Domain=.samuelm.de" : "";
   reply.header(
     "Set-Cookie",
-    `${SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax${secure ? "; Secure" : ""}${domain}`
+    `${SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax${secure ? "; Secure" : ""}${cookieDomainAttribute()}`
   );
 }
 
@@ -170,7 +169,7 @@ export async function requireApiAuth(request: FastifyRequest): Promise<void> {
     });
   }
 
-  if (token === env.GATEWAY_MASTER_KEY) {
+  if (token === env.MASTER_API_KEY) {
     request.auth = { apiKeyId: null, isAdmin: true };
     return;
   }
