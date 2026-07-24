@@ -126,7 +126,8 @@ After successful verification, remove `apps/web/.next.previous`. Restore it befo
 5. Builds the shared package and API.
 6. Backs up the current web build.
 7. Stops the web service, creates the new web build, and restores the prior build on failure.
-8. Restarts services and verifies both local endpoints.
+8. Copies missing hashed assets from the previous `.next/static` directory into the new build so open browser tabs do not receive chunk 404s.
+9. Restarts services and verifies both local endpoints.
 
 Prepare the root-owned timer templates:
 

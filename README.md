@@ -693,6 +693,26 @@ cloudflared tunnel info model-console
 sudo journalctl -u cloudflared -n 200 --no-pager
 ```
 
+### Client-side application error after deployment
+
+A generic browser message such as `Application error: a client-side exception has occurred` immediately after deployment usually means that an open tab still references hashed JavaScript chunks from the previous build.
+
+The console routes are rendered dynamically and return:
+
+```text
+Cache-Control: private, no-cache, no-store, max-age=0, must-revalidate
+```
+
+The systemd deployment script also keeps the prior build's hashed `.next/static` assets in the new build so already-open tabs can complete their requests. A small pre-hydration recovery script performs one cache-busting reload when the browser reports a chunk-loading failure.
+
+Check the deployed headers:
+
+```bash
+curl -I https://console.example.com/dashboard | grep -i cache-control
+```
+
+When a tab was already broken before this protection was deployed, reload it once with `Ctrl+Shift+R`. Do not run two `next build` processes against the same `.next` directory, and do not run `next build` while `next start` is reading that directory.
+
 ### `401 API key required`
 
 The route requires:

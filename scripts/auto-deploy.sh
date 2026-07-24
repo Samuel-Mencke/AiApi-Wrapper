@@ -112,6 +112,13 @@ case "$DEPLOY_MODE" in
       exit 1
     fi
 
+    # Keep hashed assets from the previous build so already-open browser tabs
+    # can finish loading after a deployment instead of receiving chunk 404s.
+    if [[ -d "$rollback_dir/static" ]]; then
+      mkdir -p "$REPO_DIR/apps/web/.next/static"
+      cp -a --no-clobber "$rollback_dir/static/." "$REPO_DIR/apps/web/.next/static/"
+    fi
+
     systemctl --user restart "$API_SERVICE"
     systemctl --user start "$WEB_SERVICE"
 
