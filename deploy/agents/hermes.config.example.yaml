@@ -1,0 +1,6 @@
+# Merge this model block into ~/.hermes/config.yaml.
+# Main model selection belongs in config.yaml; the key stays in ~/.hermes/.env.
+model:
+  default: coding
+  provider: custom
+  base_url: https://api.example.com/v1

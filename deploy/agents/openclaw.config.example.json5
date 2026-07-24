@@ -1,0 +1,40 @@
+// Merge these blocks into ~/.openclaw/openclaw.json.
+// Keep models.mode="merge" when the installation already has providers.
+{
+  agents: {
+    defaults: {
+      model: { primary: "model-console/coding" },
+      models: {
+        "model-console/coding": { alias: "Coding" },
+      },
+      timeoutSeconds: 900,
+    },
+  },
+  models: {
+    mode: "merge",
+    providers: {
+      "model-console": {
+        baseUrl: "https://api.example.com/v1",
+        apiKey: "${MODEL_API_KEY}",
+        api: "openai-completions",
+        timeoutSeconds: 300,
+        models: [
+          {
+            id: "coding",
+            name: "Coding",
+            reasoning: false,
+            input: ["text"],
+            contextWindow: 131072,
+            maxTokens: 16384,
+            cost: {
+              input: 0,
+              output: 0,
+              cacheRead: 0,
+              cacheWrite: 0,
+            },
+          },
+        ],
+      },
+    },
+  },
+}
