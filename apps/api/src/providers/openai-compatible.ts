@@ -2,6 +2,9 @@ import { GatewayError, isRetryableStatus } from "@model-console/core/errors";
 import type { InternalChatRequest, ModelRouteTarget, ProviderConfig, ProviderResponse } from "@model-console/core";
 import { getProviderApiKey } from "../config/providers.js";
 import type { ProviderAdapter } from "./types.js";
+import { providerRequestSignal, providerTimeoutMs } from "../router/request-control.js";
+
+const PROVIDER_TIMEOUT_MS = providerTimeoutMs();
 
 // ── Global HTTP connection pool with Keep-Alive ──
 // undici is bundled with Node 18+ and powers the global fetch().
@@ -12,8 +15,8 @@ undici.setGlobalDispatcher(
     connect: { timeout: 10_000 },
     keepAliveTimeout: 30_000,
     keepAliveMaxTimeout: 120_000,
-    headersTimeout: 300_000,
-    bodyTimeout: 300_000,
+    headersTimeout: PROVIDER_TIMEOUT_MS,
+    bodyTimeout: PROVIDER_TIMEOUT_MS,
     pipelining: 0,
     connections: 100,
   })
@@ -127,7 +130,7 @@ export function createOpenAiCompatibleAdapter(name: string): ProviderAdapter {
         method: "POST",
         headers: headers(config),
         body: JSON.stringify(body(request, target, config, false)),
-        signal: AbortSignal.timeout(60_000)
+        signal: providerRequestSignal(request, PROVIDER_TIMEOUT_MS)
       }).catch((error: unknown) => {
         throw providerNetworkError(error);
       });
@@ -166,7 +169,7 @@ export function createOpenAiCompatibleAdapter(name: string): ProviderAdapter {
         method: "POST",
         headers: headers(config),
         body: JSON.stringify(body(request, target, config, true)),
-        signal: AbortSignal.timeout(300_000)
+        signal: providerRequestSignal(request, PROVIDER_TIMEOUT_MS)
       }).catch((error: unknown) => {
         throw providerNetworkError(error);
       });

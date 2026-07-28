@@ -5,6 +5,7 @@ import { logRequest } from "../middleware/request-logger.js";
 import { applyUncensoredTransform, isUncensoredAlias } from "../middleware/uncensored.js";
 import { executeStreamWithFallback, executeWithFallback } from "../router/fallback.js";
 import { normalizeRequest } from "../router/normalize-request.js";
+import { addRequestAbortSignal } from "../router/request-control.js";
 import { toOpenAiChatResponse } from "../router/normalize-response.js";
 
 /**
@@ -222,6 +223,20 @@ export async function chatCompletionRoutes(app: FastifyInstance): Promise<void> 
   app.post("/v1/chat/completions", { preHandler: requireApiAuth }, async (request, reply) => {
     const internal = normalizeRequest(request.body);
     internal.requestId = request.requestId;
+    const clientAbort = new AbortController();
+    const abortClient = () => {
+      if (!clientAbort.signal.aborted) {
+        clientAbort.abort(new DOMException("Client disconnected", "AbortError"));
+      }
+    };
+    request.raw.once("aborted", abortClient);
+    reply.raw.once("close", abortClient);
+    const removeClientSignal = addRequestAbortSignal(internal, clientAbort.signal);
+    const cleanupClientSignal = () => {
+      removeClientSignal();
+      request.raw.off("aborted", abortClient);
+      reply.raw.off("close", abortClient);
+    };
 
     // Uncensored mode: strip all system prompts, inject uncensored prompt
     if (isUncensoredAlias(internal.modelAlias)) {
@@ -229,6 +244,7 @@ export async function chatCompletionRoutes(app: FastifyInstance): Promise<void> 
     }
 
     if (internal.stream) {
+      try {
       const { stream, logContext } = await executeStreamWithFallback(internal, request.auth.apiKeyId);
 
       // Check if client requested usage in stream
@@ -292,9 +308,16 @@ export async function chatCompletionRoutes(app: FastifyInstance): Promise<void> 
       });
 
       return;
+      } finally {
+        cleanupClientSignal();
+      }
     }
 
-    const result = await executeWithFallback(internal, request.auth.apiKeyId);
-    return toOpenAiChatResponse(internal, result.response);
+    try {
+      const result = await executeWithFallback(internal, request.auth.apiKeyId);
+      return toOpenAiChatResponse(internal, result.response);
+    } finally {
+      cleanupClientSignal();
+    }
   });
 }

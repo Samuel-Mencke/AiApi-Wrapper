@@ -3,6 +3,9 @@ import { GatewayError, isRetryableStatus } from "@model-console/core/errors";
 import type { InternalChatRequest, InternalMessage, ModelRouteTarget, ProviderConfig, ProviderResponse } from "@model-console/core";
 import { getProviderApiKey } from "../config/providers.js";
 import type { ProviderAdapter } from "./types.js";
+import { providerRequestSignal, providerTimeoutMs } from "../router/request-control.js";
+
+const PROVIDER_TIMEOUT_MS = providerTimeoutMs();
 
 /**
  * ChatGPT Web Proxy Adapter
@@ -305,7 +308,7 @@ export const chatgptWebAdapter: ProviderAdapter = {
       method: "POST",
       headers: getHeaders(config),
       body: JSON.stringify(requestBody),
-      signal: AbortSignal.timeout(120_000),
+      signal: providerRequestSignal(request, PROVIDER_TIMEOUT_MS),
     }).catch((e) => { throw providerNetworkError(e); });
 
     if (!response.ok) {
@@ -377,7 +380,7 @@ export const chatgptWebAdapter: ProviderAdapter = {
       method: "POST",
       headers: getHeaders(config),
       body: JSON.stringify(requestBody),
-      signal: AbortSignal.timeout(300_000),
+      signal: providerRequestSignal(request, PROVIDER_TIMEOUT_MS),
     }).catch((e) => { throw providerNetworkError(e); });
 
     if (!response.ok) {

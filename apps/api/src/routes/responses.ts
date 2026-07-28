@@ -10,6 +10,7 @@ import { logRequest } from "../middleware/request-logger.js";
 import { db } from "../db/client.js";
 import { responseInputItems, storedResponses } from "../db/schema.js";
 import { executeStreamWithFallback, executeWithFallback } from "../router/fallback.js";
+import { addRequestAbortSignal } from "../router/request-control.js";
 import {
   buildInternalChatRequest,
   buildResponseObject,
@@ -189,6 +190,16 @@ export async function responseRoutes(app: FastifyInstance): Promise<void> {
       messages,
       requestId: request.requestId
     });
+    const clientAbort = new AbortController();
+    const abortClient = () => {
+      if (!clientAbort.signal.aborted) {
+        clientAbort.abort(new DOMException("Client disconnected", "AbortError"));
+      }
+    };
+    request.raw.once("aborted", abortClient);
+    reply.raw.once("close", abortClient);
+    const removeClientSignal = addRequestAbortSignal(internal, clientAbort.signal);
+    reply.raw.once("finish", removeClientSignal);
 
     if (parsed.stream) {
       internal.stream = true;
