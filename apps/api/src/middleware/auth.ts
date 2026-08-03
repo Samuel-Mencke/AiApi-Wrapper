@@ -169,11 +169,6 @@ export async function requireApiAuth(request: FastifyRequest): Promise<void> {
     });
   }
 
-  if (token === env.MASTER_API_KEY) {
-    request.auth = { apiKeyId: null, isAdmin: true };
-    return;
-  }
-
   const keyHash = hashApiKey(token);
 
   // Check cache first

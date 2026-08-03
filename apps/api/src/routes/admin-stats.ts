@@ -7,6 +7,7 @@ import { apiKeys, modelRoutes, providers, quotaSettings, requests, storedRespons
 import { env } from "../env.js";
 import { requireAdminAuth } from "../middleware/auth.js";
 import { CHAT_API_KEY_ID, CHAT_API_KEY_NAME, ensureInternalChatApiKey } from "../chat/internal-api-key.js";
+import { isProviderResetActive, parseProviderResetAt } from "./provider-reset.js";
 
 function startOfToday(): string {
   const now = new Date();
@@ -522,15 +523,19 @@ export async function adminStatsRoutes(app: FastifyInstance): Promise<void> {
       })
       .sort((a: RequestRow, b: RequestRow) => b.createdAt.localeCompare(a.createdAt))[0];
 
-    const estimatedFiveHourResetAt = quotaError
+    const exactProviderResetAt = parseProviderResetAt(quotaError?.errorMessage);
+    const estimatedFiveHourResetAt = quotaError && !exactProviderResetAt
       ? new Date(new Date(quotaError.createdAt).getTime() + 5 * 60 * 60 * 1000).toISOString()
       : null;
+    const activeResetAt = exactProviderResetAt ?? estimatedFiveHourResetAt;
+    const active = isProviderResetActive(activeResetAt);
 
     return {
       provider: "z-ai",
-      status: quotaError ? "quota_or_rate_limit_seen" : "no_recent_quota_error",
-      source: "Z.ai Coding Plan docs and local gateway logs",
-      exactProviderResetAt: null,
+      status: active ? "quota_active" : quotaError ? "quota_event_expired" : "no_recent_quota_error",
+      active,
+      source: "Z.ai provider error and local gateway logs",
+      exactProviderResetAt,
       estimatedFiveHourResetAt,
       weeklyResetAt: null,
       notes: [
@@ -546,6 +551,7 @@ export async function adminStatsRoutes(app: FastifyInstance): Promise<void> {
             realModel: quotaError.realModel,
             errorCode: quotaError.errorCode,
             errorMessage: quotaError.errorMessage,
+            exactProviderResetAt,
             estimatedFiveHourResetAt
           }
         : null

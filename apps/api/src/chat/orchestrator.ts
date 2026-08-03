@@ -11,7 +11,7 @@ import { executeChatTool, openAiToolDefinitions } from "./tools.js";
 import { generateFunctionPlotPoints } from "./function-plot.js";
 import { parseRichBlocksFromText, richBlocksSchema, type RichBlocks } from "./rich-blocks.js";
 import { CHAT_API_KEY_ID, ensureInternalChatApiKey } from "./internal-api-key.js";
-import { applyUncensoredTransform, isUncensoredAlias, uncensoredInstructions } from "../middleware/uncensored.js";
+import { applyUncensoredTransform, buildRetryMessages, detectRefusal, isUncensoredAlias, uncensoredInstructions } from "../middleware/uncensored.js";
 
 export type ChatRunEvent =
   | { type: "run"; run: unknown }
@@ -525,6 +525,10 @@ export function createChatRunStream(input: {
         let finalModel = target?.model ?? null;
         let usage: { inputTokens?: number; outputTokens?: number; totalTokens?: number } = {};
 
+        const uncensoredMode = isUncensoredAlias(input.modelAlias);
+        let uncensoredRetries = 0;
+        const MAX_UNCENSORED_RETRIES = 2;
+
         for (let stepIndex = 0; stepIndex < env.CHAT_AGENT_MAX_STEPS; stepIndex += 1) {
           const modelStep = createStep(runId, "model", "Provider call", { stepIndex, modelAlias: input.modelAlias, route: route.attempts });
           emitSse(controller, { type: "step", step: serializeStep(modelStep) });
@@ -561,6 +565,22 @@ export function createChatRunStream(input: {
             reasoningChars: streamed.reasoningText.length + streamed.thinkingText.length
           });
           emitSse(controller, { type: "step", step: serializeStep(db.select().from(chatSteps).where(eq(chatSteps.id, modelStep.id)).get()!) });
+
+          // ── UNCENSORED REFUSAL DETECTION + AUTO-RETRY ──
+          // If the model refused despite all anti-refusal measures, and this
+          // is a final answer (no tool calls), retry with prefill+nudge.
+          if (uncensoredMode && !streamed.toolCalls.length && streamed.content && detectRefusal(streamed.content) && uncensoredRetries < MAX_UNCENSORED_RETRIES) {
+            uncensoredRetries += 1;
+            const retryStep = createStep(runId, "model", `Refusal detected — retry ${uncensoredRetries}/${MAX_UNCENSORED_RETRIES} with prefill`, { stepIndex, refusalDetected: true }, "running");
+            emitSse(controller, { type: "step", step: serializeStep(retryStep) });
+            // Build retry messages: original + refused response + nudge + prefill
+            messages = buildRetryMessages(messages, streamed.content, "de");
+            completeStep(retryStep.id, { retried: true, attempt: uncensoredRetries }, "completed");
+            emitSse(controller, { type: "step", step: serializeStep(db.select().from(chatSteps).where(eq(chatSteps.id, retryStep.id)).get()!) });
+            // Don't advance stepIndex — retry the same step
+            stepIndex -= 1;
+            continue;
+          }
 
           if (streamed.toolCalls.length && tools.length) {
             messages = [

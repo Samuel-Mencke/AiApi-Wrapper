@@ -51,9 +51,9 @@ export function AppSidebar({ collapsed, onToggleCollapsed, mobileNavOpen = false
     <>
       {/* Desktop sidebar */}
       <aside className={cn(
-        "fixed bottom-0 left-0 top-0 z-20 hidden w-[220px] overflow-y-auto border-r border-hair bg-panel md:block",
+        "fixed bottom-0 left-0 top-0 z-20 hidden w-[210px] overflow-y-auto border-r border-hair bg-canvas md:block",
         mounted && "transition-[width] duration-200 ease-out",
-        collapsed && "w-[56px]"
+        collapsed && "w-[52px]"
       )}>
         <SidebarContent collapsed={collapsed} onToggleCollapsed={onToggleCollapsed} pathname={pathname} />
       </aside>
@@ -61,19 +61,19 @@ export function AppSidebar({ collapsed, onToggleCollapsed, mobileNavOpen = false
       {/* Mobile overlay */}
       {mobileNavOpen ? (
         <button type="button" aria-label="Close navigation"
-          className="fixed inset-0 z-[60] bg-black/50 md:hidden"
+          className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm md:hidden"
           onClick={onMobileNavClose}
         />
       ) : null}
 
       {/* Mobile drawer */}
       <aside className={cn(
-        "fixed bottom-0 left-0 top-0 z-[61] w-72 max-w-[86vw] overflow-y-auto border-r border-hair bg-panel transition-transform duration-200 md:hidden",
+        "fixed bottom-0 left-0 top-0 z-[61] w-72 max-w-[86vw] overflow-y-auto border-r border-hair bg-canvas transition-transform duration-200 md:hidden",
         mobileNavOpen ? "translate-x-0" : "-translate-x-full"
       )}>
-        <div className="flex h-14 items-center justify-between px-4">
-          <span className="text-[13px] font-semibold tracking-tight text-ink">Navigation</span>
-          <button type="button" className="grid h-8 w-8 place-items-center rounded-lg text-faint transition hover:bg-hover hover:text-ink"
+        <div className="flex h-12 items-center justify-between px-4">
+          <span className="text-[12px] font-semibold tracking-tight text-ink">Navigation</span>
+          <button type="button" className="grid h-7 w-7 place-items-center rounded-lg text-faint transition hover:bg-hover hover:text-ink"
             onClick={onMobileNavClose} aria-label="Close navigation">
             <X className="h-4 w-4" />
           </button>
@@ -90,58 +90,66 @@ function SidebarContent({ collapsed, onToggleCollapsed, pathname, forceShowLabel
   pathname: string;
   forceShowLabels?: boolean;
 }) {
+  const showLabels = forceShowLabels || !collapsed;
+
   return (
     <div className="flex h-full flex-col">
-      {!forceShowLabels ? (
-        <div className={cn("flex h-12 items-center px-2", collapsed ? "justify-center" : "justify-end")}>
-          <button type="button" className="grid h-8 w-8 place-items-center text-faint transition hover:bg-hover hover:text-ink"
-            onClick={onToggleCollapsed} title={collapsed ? "Expand" : "Collapse"}>
-            {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
-          </button>
-        </div>
-      ) : null}
-
-      {/* Navigation */}
-      <nav className="flex-1 space-y-4 overflow-y-auto px-2 py-3" aria-label="Main navigation">
-        {groups.map((group) => (
-          <div key={group.label} className="space-y-0.5">
+      {/* Navigation — starts at top, no brand mark */}
+      <nav className="flex-1 overflow-y-auto px-2 pt-3" aria-label="Main navigation">
+        {groups.map((group, gi) => (
+          <div key={group.label} className={gi > 0 ? "mt-4" : ""}>
             <div className={cn(
-              "px-3 py-1 text-[9px] font-medium uppercase tracking-[0.12em] text-faint",
-              collapsed && !forceShowLabels && "opacity-0"
+              "px-2.5 pb-1 text-[9px] font-medium uppercase tracking-[0.14em] text-faint",
+              !showLabels && "opacity-0 h-0 pb-0 overflow-hidden"
             )}>
               {group.label}
             </div>
-            {group.items.map((item) => {
-              const Icon = item.icon;
-              const active = !item.external && pathname === item.href;
-              const classes = cn(
-                "flex h-9 items-center gap-3 px-3 text-[13px] transition-colors",
-                collapsed && !forceShowLabels && "justify-center px-0",
-                active
-                  ? "bg-white/[0.05] text-ink font-medium"
-                  : "text-dim hover:bg-hover hover:text-ink"
-              );
-              const content = (
-                <>
-                  {active && (
-                    <span className="absolute left-0 top-1/2 h-4 w-px -translate-y-1/2 bg-accent" />
-                  )}
-                  <Icon className={cn("h-4 w-4 shrink-0", active ? "text-accent" : "group-hover:text-dim")} />
-                  <span className={cn("truncate", collapsed && !forceShowLabels && "hidden")}>{item.label}</span>
-                  {item.external && !(collapsed && !forceShowLabels) ? (
-                    <ExternalLink className="ml-auto h-3 w-3 text-faint" />
-                  ) : null}
-                </>
-              );
-              return item.external
-                ? <a key={item.href} href={item.href} className={classes} title={collapsed && !forceShowLabels ? item.label : undefined}>{content}</a>
-                : <Link key={item.href} href={item.href} className={cn("relative", classes)} title={collapsed && !forceShowLabels ? item.label : undefined}>{content}</Link>;
-            })}
+            <div className="space-y-px">
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                const active = !item.external && pathname === item.href;
+                const classes = cn(
+                  "relative flex h-8 items-center gap-2.5 rounded-lg text-[12px] transition-all duration-150",
+                  !showLabels && "justify-center px-0",
+                  showLabels && "px-2.5",
+                  active
+                    ? "bg-hover text-ink font-medium"
+                    : "text-dim hover:bg-hover hover:text-ink"
+                );
+                const content = (
+                  <>
+                    <Icon className={cn("h-[15px] w-[15px] shrink-0", active ? "text-ink" : "")} />
+                    {showLabels && <span className="truncate">{item.label}</span>}
+                    {item.external && showLabels ? (
+                      <ExternalLink className="ml-auto h-3 w-3 text-faint" />
+                    ) : null}
+                  </>
+                );
+                return item.external
+                  ? <a key={item.href} href={item.href} className={classes} title={!showLabels ? item.label : undefined}>{content}</a>
+                  : <Link key={item.href} href={item.href} className={classes} title={!showLabels ? item.label : undefined}>{content}</Link>;
+              })}
+            </div>
           </div>
         ))}
       </nav>
 
-
+      {/* Collapse toggle at bottom */}
+      {!forceShowLabels ? (
+        <div className="border-t border-hair p-2">
+          <button type="button"
+            className={cn(
+              "flex h-8 w-full items-center gap-2.5 rounded-lg text-faint transition hover:bg-hover hover:text-ink",
+              !showLabels && "justify-center"
+            )}
+            onClick={onToggleCollapsed} title={collapsed ? "Expand" : "Collapse"}>
+            {collapsed
+              ? <PanelLeftOpen className="h-[15px] w-[15px] shrink-0" />
+              : <><PanelLeftClose className="h-[15px] w-[15px] shrink-0" /><span className="text-[12px]">Collapse</span></>
+            }
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

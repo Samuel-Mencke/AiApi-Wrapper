@@ -1,39 +1,47 @@
 import { eq } from "drizzle-orm";
+import crypto from "node:crypto";
 import { db } from "../db/client.js";
 import { apiKeys } from "../db/schema.js";
-import { env } from "../env.js";
 import { hashApiKey } from "../middleware/auth.js";
 
 export const CHAT_API_KEY_ID = "system";
 export const CHAT_API_KEY_NAME = "Dashboard Chat";
 
-export function ensureInternalChatApiKey(): boolean {
-  const existing = db.select().from(apiKeys).where(eq(apiKeys.id, CHAT_API_KEY_ID)).get();
+/**
+ * The internal chat key is a self-contained secret generated on first run
+ * and stored as a hash in the api_keys table (id="system"). It is NOT
+ * derived from MASTER_API_KEY, so the dashboard chat works independently.
+ */
+export function getInternalChatApiKey(): string {
+  const cached = (globalThis as Record<string, unknown>).__internalChatKey as string | undefined;
+  if (cached) return cached;
+
+  const key = `gw_${crypto.randomBytes(24).toString("base64url")}`;
+  const keyHash = hashApiKey(key);
   const now = new Date().toISOString();
 
+  const existing = db.select().from(apiKeys).where(eq(apiKeys.id, CHAT_API_KEY_ID)).get();
   if (!existing) {
     db.insert(apiKeys).values({
       id: CHAT_API_KEY_ID,
       name: CHAT_API_KEY_NAME,
-      keyHash: hashApiKey(env.MASTER_API_KEY),
+      keyHash,
       enabled: true,
       createdAt: now,
       lastUsedAt: null
     }).run();
-    return true;
-  }
-
-  const expectedKeyHash = hashApiKey(env.MASTER_API_KEY);
-  if (existing.name !== CHAT_API_KEY_NAME || !existing.enabled || existing.keyHash !== expectedKeyHash) {
+  } else {
     db.update(apiKeys)
-      .set({
-        name: CHAT_API_KEY_NAME,
-        keyHash: expectedKeyHash,
-        enabled: true
-      })
+      .set({ name: CHAT_API_KEY_NAME, keyHash, enabled: true })
       .where(eq(apiKeys.id, CHAT_API_KEY_ID))
       .run();
   }
 
-  return false;
+  (globalThis as Record<string, unknown>).__internalChatKey = key;
+  return key;
+}
+
+export function ensureInternalChatApiKey(): boolean {
+  getInternalChatApiKey();
+  return true;
 }

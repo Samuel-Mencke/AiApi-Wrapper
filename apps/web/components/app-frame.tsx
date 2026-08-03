@@ -10,7 +10,7 @@ export function AppFrame({ children, flush = false }: { children: ReactNode; flu
   const [mounted, setMounted] = useState(false);
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
-    return window.localStorage.getItem("model-console-sidebar-collapsed") === "true";
+    return window.localStorage.getItem("model-console-sidebar-collapsed") !== "false";
   });
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const menuOpenTimeRef = useRef(0);
@@ -43,8 +43,8 @@ export function AppFrame({ children, flush = false }: { children: ReactNode; flu
       <div className={cn(
         "min-h-screen bg-canvas",
         mounted && "transition-[margin] duration-200 ease-out",
-        "md:ml-[220px]",
-        collapsed && "md:ml-[56px]"
+        "md:ml-[210px]",
+        collapsed && "md:ml-[52px]"
       )}>
         <Topbar onMenuClick={handleOpenMenu} />
         <main className={cn(flush ? "p-0" : "p-4 md:p-6 lg:p-7")}>{children}</main>

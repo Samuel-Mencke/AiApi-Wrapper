@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { estimateCostUsd } from "@model-console/core/pricing";
 import { requireApiAuth } from "../middleware/auth.js";
 import { logRequest } from "../middleware/request-logger.js";
-import { applyUncensoredTransform, isUncensoredAlias } from "../middleware/uncensored.js";
+import { applyUncensoredTransform, buildRetryMessages, detectRefusal, isUncensoredAlias } from "../middleware/uncensored.js";
 import { executeStreamWithFallback, executeWithFallback } from "../router/fallback.js";
 import { normalizeRequest } from "../router/normalize-request.js";
 import { addRequestAbortSignal } from "../router/request-control.js";
@@ -239,12 +239,147 @@ export async function chatCompletionRoutes(app: FastifyInstance): Promise<void> 
     };
 
     // Uncensored mode: strip all system prompts, inject uncensored prompt
-    if (isUncensoredAlias(internal.modelAlias)) {
+    const uncensoredStreamMode = isUncensoredAlias(internal.modelAlias);
+    if (uncensoredStreamMode) {
       internal.messages = applyUncensoredTransform(internal.messages);
     }
 
     if (internal.stream) {
       try {
+      // For uncensored streaming, use buffer-and-check: accumulate the first
+      // ~500 chars, check for refusal, and if detected, retry with prefill.
+      // If no refusal, flush buffer + stream the rest normally.
+      const MAX_STREAM_RETRIES = 2;
+      let currentMessages = internal.messages;
+
+      if (uncensoredStreamMode) {
+        for (let retry = 0; retry <= MAX_STREAM_RETRIES; retry++) {
+          const { stream: rawStream, logContext: lc } = await executeStreamWithFallback({ ...internal, messages: currentMessages }, request.auth.apiKeyId);
+
+          const includeUsage = Boolean(
+            internal.streamOptions &&
+            typeof internal.streamOptions === "object" &&
+            (internal.streamOptions as any).include_usage === true
+          );
+          const includeReasoning = internal.gateway?.includeReasoning === true;
+
+          const usageRef: { value: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | null } = {
+            value: null
+          };
+
+          // Buffer first ~500 chars of content, then check for refusal
+          const buffer: string[] = [];
+          let totalContent = "";
+          let bufferComplete = false;
+          let refusalInBuffer = false;
+
+          // We need to read the raw stream, check for refusal, then either
+          // retry or hand off to the client
+          const reader = rawStream.getReader();
+          const decoder = new TextDecoder();
+          let streamBuffer = "";
+          let accumulatedContent = "";
+
+          // Read until we have enough content or stream ends
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            streamBuffer += decoder.decode(value, { stream: true });
+
+            // Parse SSE chunks to extract content
+            const events = streamBuffer.split("\n\n");
+            streamBuffer = events.pop() ?? "";
+            for (const event of events) {
+              const dataLines = event.split("\n").filter(l => l.startsWith("data: ")).map(l => l.slice(6).trim());
+              for (const payload of dataLines) {
+                if (payload === "[DONE]") continue;
+                try {
+                  const parsed = JSON.parse(payload);
+                  const choice = parsed.choices?.[0];
+                  const content = choice?.delta?.content;
+                  if (typeof content === "string") {
+                    accumulatedContent += content;
+                  }
+                } catch {}
+              }
+            }
+
+            // Check if we have enough to detect refusal
+            if (accumulatedContent.length >= 500) {
+              if (detectRefusal(accumulatedContent)) {
+                refusalInBuffer = true;
+              }
+              bufferComplete = true;
+              break;
+            }
+          }
+
+          // Also check at end of stream if buffer wasn't completed
+          if (!bufferComplete && accumulatedContent.length > 20) {
+            if (detectRefusal(accumulatedContent)) {
+              refusalInBuffer = true;
+            }
+          }
+
+          reader.cancel().catch(() => {});
+
+          if (!refusalInBuffer || retry >= MAX_STREAM_RETRIES) {
+            // No refusal (or max retries hit) — stream the response to client
+            // Since we already consumed the stream, we need to re-request
+            // and stream it properly. We already know it won't refuse.
+            const { stream: cleanStream, logContext } = await executeStreamWithFallback({ ...internal, messages: currentMessages }, request.auth.apiKeyId);
+
+            const filteredStream = cleanStream.pipeThrough(createOpenAICompatibleFilter(
+              includeUsage,
+              includeReasoning,
+              internal.modelAlias,
+              (usage) => { usageRef.value = usage; }
+            ));
+
+            reply.hijack();
+            reply.raw.writeHead(200, {
+              "Content-Type": "text/event-stream; charset=utf-8",
+              "Cache-Control": "no-cache",
+              Connection: "keep-alive",
+              "x-request-id": request.requestId
+            });
+
+            const finalReader = filteredStream.getReader();
+            try {
+              while (true) {
+                const { done, value } = await finalReader.read();
+                if (done) break;
+                reply.raw.write(value);
+              }
+              reply.raw.end();
+            } catch {
+              try { reply.raw.end(); } catch {}
+            }
+
+            const realUsage = usageRef.value;
+            logRequest({
+              requestId: logContext.requestId,
+              apiKeyId: logContext.apiKeyId,
+              modelAlias: logContext.modelAlias,
+              provider: logContext.provider,
+              realModel: logContext.realModel,
+              status: "success",
+              latencyMs: Date.now() - logContext.started,
+              inputTokens: realUsage?.prompt_tokens,
+              outputTokens: realUsage?.completion_tokens,
+              estimatedCost: estimateCostUsd(logContext.realModel, realUsage?.prompt_tokens, realUsage?.completion_tokens)
+            });
+
+            return;
+          }
+
+          // Refusal detected — retry with prefill+nudge
+          currentMessages = buildRetryMessages(currentMessages, accumulatedContent, "de");
+          continue;
+        }
+      }
+
+      // Normal (non-uncensored) streaming path
       const { stream, logContext } = await executeStreamWithFallback(internal, request.auth.apiKeyId);
 
       // Check if client requested usage in stream
@@ -314,6 +449,21 @@ export async function chatCompletionRoutes(app: FastifyInstance): Promise<void> 
     }
 
     try {
+      // Uncensored non-streaming: detect refusal and auto-retry with prefill
+      if (isUncensoredAlias(internal.modelAlias)) {
+        const MAX_RETRIES = 2;
+        for (let retry = 0; retry <= MAX_RETRIES; retry++) {
+          const result = await executeWithFallback(internal, request.auth.apiKeyId);
+          const responseText = typeof result.response.content === "string"
+            ? result.response.content
+            : (result.response.raw as any)?.choices?.[0]?.message?.content;
+          if (typeof responseText !== "string" || !detectRefusal(responseText) || retry >= MAX_RETRIES) {
+            return toOpenAiChatResponse(internal, result.response);
+          }
+          // Refusal detected — rebuild messages with nudge + prefill and retry
+          internal.messages = buildRetryMessages(internal.messages, responseText, "de");
+        }
+      }
       const result = await executeWithFallback(internal, request.auth.apiKeyId);
       return toOpenAiChatResponse(internal, result.response);
     } finally {
