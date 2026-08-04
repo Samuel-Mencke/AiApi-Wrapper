@@ -163,7 +163,7 @@ function apiKeyNameMap(): Map<string, string> {
 }
 
 export async function adminStatsRoutes(app: FastifyInstance): Promise<void> {
-  app.get("/admin/stats", { preHandler: requireAdminAuth }, async () => {
+  app.get("/admin/stats", { preHandler: requireAdminAuth }, async (request) => {
     ensureQuotaSettings();
     ensureInternalChatApiKey();
     const allRequests: RequestRow[] = db.select().from(requests).all();
@@ -180,6 +180,18 @@ export async function adminStatsRoutes(app: FastifyInstance): Promise<void> {
       ? Math.round(allRequests.reduce((total, request) => total + request.latencyMs, 0) / allRequests.length)
       : 0;
     const totalTokens = allRequests.reduce((total, request) => total + (request.inputTokens ?? 0) + (request.outputTokens ?? 0), 0);
+
+    // === Time-range filtering (Task B1) ===
+    const rangeParam = (request.query as { range?: string }).range ?? "alltime";
+    const rangeMs: Record<string, number> = {
+      "24h": 24 * 60 * 60 * 1000,
+      "7d": 7 * 24 * 60 * 60 * 1000,
+      "30d": 30 * 24 * 60 * 60 * 1000,
+      alltime: Number.MAX_SAFE_INTEGER
+    };
+    const rangeDuration = rangeMs[rangeParam] ?? Number.MAX_SAFE_INTEGER;
+    const rangeStart = new Date(Date.now() - rangeDuration).toISOString();
+    const rangedRequests = allRequests.filter((r) => r.createdAt >= rangeStart);
 
     const hourly = new Map<string, {
       requests: number;
@@ -201,7 +213,7 @@ export async function adminStatsRoutes(app: FastifyInstance): Promise<void> {
     const usageByApiKeyProvider = new Map<string, UsageAggregate>();
     const usageByApiKeyModel = new Map<string, UsageAggregate>();
 
-    for (const request of allRequests) {
+    for (const request of rangedRequests) {
       const hour = request.createdAt.slice(0, 13) + ":00";
       const inputTokens = request.inputTokens ?? 0;
       const outputTokens = request.outputTokens ?? 0;
@@ -276,6 +288,21 @@ export async function adminStatsRoutes(app: FastifyInstance): Promise<void> {
 
     const providerUsage = Array.from(usageByProvider.values()).map(finalizeUsage).sort((a, b) => b.requests - a.requests);
     const modelUsage = Array.from(usageByModel.values()).map(finalizeUsage).sort((a, b) => b.requests - a.requests);
+
+    // === Daily breakdown (Task B1) ===
+    const daily = new Map<string, { date: string; requests: number; errors: number; tokens: number; cost: number; inputTokens: number; outputTokens: number }>();
+    for (const request of rangedRequests) {
+      const date = request.createdAt.slice(0, 10);
+      const bucket = daily.get(date) ?? { date, requests: 0, errors: 0, tokens: 0, cost: 0, inputTokens: 0, outputTokens: 0 };
+      bucket.requests += 1;
+      if (request.status === "error") bucket.errors += 1;
+      bucket.tokens += (request.inputTokens ?? 0) + (request.outputTokens ?? 0);
+      bucket.inputTokens += request.inputTokens ?? 0;
+      bucket.outputTokens += request.outputTokens ?? 0;
+      bucket.cost += request.estimatedCost ?? 0;
+      daily.set(date, bucket);
+    }
+
     if (!usageByApiKey.has(CHAT_API_KEY_ID)) {
       usageByApiKey.set(CHAT_API_KEY_ID, emptyUsage(CHAT_API_KEY_ID, keyNames.get(CHAT_API_KEY_ID) ?? CHAT_API_KEY_NAME));
     }
@@ -392,6 +419,8 @@ export async function adminStatsRoutes(app: FastifyInstance): Promise<void> {
     );
 
     return {
+      range: rangeParam,
+      rangeStart,
       requestsToday,
       responsesToday,
       requestsLast5h,
@@ -406,6 +435,31 @@ export async function adminStatsRoutes(app: FastifyInstance): Promise<void> {
       errorRate: allRequests.length ? errors / allRequests.length : 0,
       estimatedCost: Number(allRequests.reduce((total, request) => total + (request.estimatedCost ?? 0), 0).toFixed(6)),
       activeProviders,
+      alltimeSummary: {
+        totalRequests: allRequests.length,
+        totalTokens,
+        totalCost: Number(allRequests.reduce((t, r) => t + (r.estimatedCost ?? 0), 0).toFixed(4)),
+        totalInputTokens: allRequests.reduce((t, r) => t + (r.inputTokens ?? 0), 0),
+        totalOutputTokens: allRequests.reduce((t, r) => t + (r.outputTokens ?? 0), 0),
+        avgDailyCost: allRequests.length > 0
+          ? Number(
+              (
+                allRequests.reduce((t, r) => t + (r.estimatedCost ?? 0), 0) /
+                Math.max(1, Math.ceil((Date.now() - new Date(allRequests[0]?.createdAt ?? Date.now()).getTime()) / 86400000))
+              ).toFixed(4)
+            )
+          : 0,
+        dateRange: {
+          earliest: allRequests[0]?.createdAt ?? null,
+          latest: allRequests[allRequests.length - 1]?.createdAt ?? null
+        }
+      },
+      dailyBreakdown: Array.from(daily.values())
+        .map((d) => ({
+          ...d,
+          cost: Number(d.cost.toFixed(6))
+        }))
+        .sort((a, b) => a.date.localeCompare(b.date)),
       requestsOverTime: Array.from(hourly.entries()).map(([time, value]) => ({
         time,
         requests: value.requests,
@@ -438,6 +492,84 @@ export async function adminStatsRoutes(app: FastifyInstance): Promise<void> {
         slowestProvider,
         highestErrorSource: mostErrors
       }
+    };
+  });
+
+  // === Task B2: Cost breakdown endpoint ===
+  app.get("/admin/stats/cost-breakdown", { preHandler: requireAdminAuth }, async (request) => {
+    const rangeParam = (request.query as { range?: string }).range ?? "alltime";
+    const rangeMs: Record<string, number> = {
+      "24h": 24 * 60 * 60 * 1000,
+      "7d": 7 * 24 * 60 * 60 * 1000,
+      "30d": 30 * 24 * 60 * 60 * 1000,
+      alltime: Number.MAX_SAFE_INTEGER
+    };
+    const since = new Date(Date.now() - (rangeMs[rangeParam] ?? Number.MAX_SAFE_INTEGER)).toISOString();
+    const rangeRequests = db.select().from(requests).all().filter((r) => r.createdAt >= since);
+
+    const byProvider = new Map<string, { inputTokens: number; outputTokens: number; cost: number; requests: number }>();
+    const byModel = new Map<string, { inputTokens: number; outputTokens: number; cost: number; requests: number; provider: string }>();
+
+    for (const r of rangeRequests) {
+      const p = byProvider.get(r.provider) ?? { inputTokens: 0, outputTokens: 0, cost: 0, requests: 0 };
+      p.inputTokens += r.inputTokens ?? 0;
+      p.outputTokens += r.outputTokens ?? 0;
+      p.cost += r.estimatedCost ?? 0;
+      p.requests += 1;
+      byProvider.set(r.provider, p);
+
+      const m = byModel.get(r.modelAlias) ?? { inputTokens: 0, outputTokens: 0, cost: 0, requests: 0, provider: r.provider };
+      m.inputTokens += r.inputTokens ?? 0;
+      m.outputTokens += r.outputTokens ?? 0;
+      m.cost += r.estimatedCost ?? 0;
+      m.requests += 1;
+      byModel.set(r.modelAlias, m);
+    }
+
+    return {
+      range: rangeParam,
+      providers: Array.from(byProvider.entries()).map(([name, v]) => ({
+        name,
+        ...v,
+        cost: Number(v.cost.toFixed(6))
+      })).sort((a, b) => b.cost - a.cost),
+      models: Array.from(byModel.entries()).map(([name, v]) => ({
+        name,
+        ...v,
+        cost: Number(v.cost.toFixed(6))
+      })).sort((a, b) => b.cost - a.cost)
+    };
+  });
+
+  // === Task B2: Token flow endpoint ===
+  app.get("/admin/stats/token-flow", { preHandler: requireAdminAuth }, async (request) => {
+    const rangeParam = (request.query as { range?: string }).range ?? "7d";
+    const rangeMs: Record<string, number> = {
+      "24h": 24 * 60 * 60 * 1000,
+      "7d": 7 * 24 * 60 * 60 * 1000,
+      "30d": 30 * 24 * 60 * 60 * 1000,
+      alltime: Number.MAX_SAFE_INTEGER
+    };
+    const since = new Date(Date.now() - (rangeMs[rangeParam] ?? 7 * 24 * 60 * 60 * 1000)).toISOString();
+    const rangeRequests = db.select().from(requests).all().filter((r) => r.createdAt >= since);
+
+    // Daily stacked by provider
+    const dailyByProvider = new Map<string, { date: string; provider: string; inputTokens: number; outputTokens: number; cost: number }>();
+    for (const r of rangeRequests) {
+      const date = r.createdAt.slice(0, 10);
+      const key = `${date}:${r.provider}`;
+      const bucket = dailyByProvider.get(key) ?? { date, provider: r.provider, inputTokens: 0, outputTokens: 0, cost: 0 };
+      bucket.inputTokens += r.inputTokens ?? 0;
+      bucket.outputTokens += r.outputTokens ?? 0;
+      bucket.cost += r.estimatedCost ?? 0;
+      dailyByProvider.set(key, bucket);
+    }
+
+    return {
+      range: rangeParam,
+      flow: Array.from(dailyByProvider.values())
+        .map((v) => ({ ...v, cost: Number(v.cost.toFixed(6)) }))
+        .sort((a, b) => a.date.localeCompare(b.date))
     };
   });
 
