@@ -18,6 +18,7 @@ import { adminLogRoutes } from "./routes/admin-logs.js";
 import { adminPreferencesRoutes } from "./routes/admin-preferences.js";
 import { adminModelRoutes } from "./routes/admin-models.js";
 import { adminProviderRoutes } from "./routes/admin-providers.js";
+import { healthProbeRoutes, startAutoProbe } from "./routes/health-probes.js";
 import { adminStatsRoutes } from "./routes/admin-stats.js";
 import { adminChatRoutes } from "./routes/admin-chat.js";
 import { audioTranscriptionRoutes } from "./routes/audio-transcriptions.js";
@@ -83,6 +84,9 @@ await app.register(adminModelRoutes);
 await app.register(adminApiKeyRoutes);
 await app.register(adminLogRoutes);
 await app.register(adminPreferencesRoutes);
+await app.register(healthProbeRoutes);
+
+startAutoProbe();
 
 try {
   await app.listen({ host: env.HOST, port: env.PORT });

@@ -149,3 +149,13 @@ export const userPreferences = sqliteTable("user_preferences", {
   themeId: text("theme_id").notNull().default("claude-warm"),
   updatedAt: text("updated_at").notNull()
 });
+
+export const healthProbes = sqliteTable("health_probes", {
+  id: text("id").primaryKey(),
+  provider: text("provider").notNull(),
+  status: text("status").notNull(), // "operational" | "degraded" | "incident"
+  latencyMs: integer("latency_ms"),
+  statusCode: integer("status_code"),
+  errorMessage: text("error_message"),
+  createdAt: text("created_at").notNull()
+});
