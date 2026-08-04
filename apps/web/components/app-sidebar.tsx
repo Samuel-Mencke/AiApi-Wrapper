@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   AudioLines, BarChart3, BookOpen, ExternalLink, KeyRound,
   MessageSquare, PanelLeftClose, PanelLeftOpen, Route, ServerCog,
-  Settings, X
+  Settings, TrendingUp, X
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -19,6 +19,7 @@ const chatUrl = process.env.NEXT_PUBLIC_CHAT_URL?.trim();
 const groups: NavGroup[] = [
   { label: "Workspace", items: [
     { href: "/dashboard", label: "Overview", icon: BarChart3 },
+    { href: "/analytics", label: "Analytics", icon: TrendingUp },
     ...(chatUrl ? [{ href: chatUrl, label: "Chat", icon: MessageSquare, external: true }] : []),
     { href: "/transcription", label: "Transcription", icon: AudioLines }
   ]},
