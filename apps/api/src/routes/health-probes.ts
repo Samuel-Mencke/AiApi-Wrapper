@@ -2,7 +2,7 @@ import { lt, desc, eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { nanoid } from "nanoid";
 import { db } from "../db/client.js";
-import { healthProbes, providers, modelRoutes } from "../db/schema.js";
+import { healthProbes, providers, modelRoutes, requests } from "../db/schema.js";
 import { requireAdminAuth } from "../middleware/auth.js";
 import { anthropicAdapter } from "../providers/anthropic.js";
 import { geminiAdapter } from "../providers/gemini.js";
@@ -36,7 +36,16 @@ async function probeProvider(
   providerType: string,
   providerBaseUrl: string | null
 ): Promise<ProbeResult> {
-  const route = db.select().from(modelRoutes).all().find((r) => r.provider === providerName && r.enabled);
+  const enabledRoutes = db.select().from(modelRoutes).all().filter((r) => r.provider === providerName && r.enabled);
+  const latestSuccessByAlias = new Map<string, string>();
+  for (const request of db.select().from(requests).all()) {
+    if (request.provider !== providerName || request.status !== "success") continue;
+    const current = latestSuccessByAlias.get(request.modelAlias);
+    if (!current || request.createdAt > current) latestSuccessByAlias.set(request.modelAlias, request.createdAt);
+  }
+  const route = enabledRoutes.sort((a, b) =>
+    (latestSuccessByAlias.get(b.alias) ?? "").localeCompare(latestSuccessByAlias.get(a.alias) ?? "")
+  )[0];
   if (!route) {
     return { provider: providerName, status: "incident", latencyMs: null, statusCode: null, errorMessage: "No enabled model route" };
   }
