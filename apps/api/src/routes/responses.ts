@@ -21,7 +21,7 @@ import {
   usageFromProvider
 } from "../responses/compat.js";
 import { createResponsesSseStream } from "../responses/stream.js";
-import { applyUncensoredTransform, buildRetryMessages, detectRefusal, isUncensoredAlias, uncensoredInstructions } from "../middleware/uncensored.js";
+import { applyUncensoredTransform, isUncensoredAlias, uncensoredInstructions } from "../middleware/uncensored.js";
 
 const responseCreateSchema = z.object({
   model: z.string().min(1),
@@ -190,6 +190,15 @@ export async function responseRoutes(app: FastifyInstance): Promise<void> {
       messages,
       requestId: request.requestId
     });
+
+    // Disable thinking/reasoning in uncensored mode — prevents GLM from
+    // reasoning itself into a refusal.
+    if (uncensored) {
+      internal.extraBody = {
+        ...(internal.extraBody ?? {}),
+        thinking: { type: "disabled" },
+      };
+    }
     const clientAbort = new AbortController();
     const abortClient = () => {
       if (!clientAbort.signal.aborted) {
@@ -266,34 +275,7 @@ export async function responseRoutes(app: FastifyInstance): Promise<void> {
       return;
     }
 
-    // Uncensored non-streaming: detect refusal and auto-retry with prefill
-    if (uncensored) {
-      const MAX_RETRIES = 2;
-      for (let retry = 0; retry <= MAX_RETRIES; retry++) {
-        const retryResult = await executeWithFallback(internal, request.auth.apiKeyId);
-        const responseText = typeof retryResult.response.content === "string"
-          ? retryResult.response.content
-          : (retryResult.response.raw as any)?.choices?.[0]?.message?.content;
-        if (typeof responseText !== "string" || !detectRefusal(responseText) || retry >= MAX_RETRIES) {
-          const output = responseOutputFromProvider(retryResult.response);
-          const usage = usageFromProvider(retryResult.response);
-          const responseBody = buildResponseObject({
-            id: responseId, createdAt, completedAt: Math.floor(Date.now() / 1000),
-            status: "completed", model: parsed.model, request: responseRequest, output, usage
-          });
-          if (parsed.store !== false) {
-            storeResponse({ id: responseId, apiKeyId: request.auth.apiKeyId, modelAlias: parsed.model,
-              provider: retryResult.provider, realModel: retryResult.realModel,
-              request: responseRequest, response: responseBody, inputItems });
-          }
-          return responseBody;
-        }
-        // Refusal detected — rebuild messages with nudge + prefill
-        const retried = buildRetryMessages(internal.messages, responseText, "de");
-        internal.messages = retried;
-      }
-    }
-
+    // Uncensored non-streaming: simple pass-through, system prompt already transformed
     const result = await executeWithFallback(internal, request.auth.apiKeyId);
     const output = responseOutputFromProvider(result.response);
     const usage = usageFromProvider(result.response);

@@ -7,11 +7,12 @@ import { chatMessages, chatRuns, chatSteps, chatThreads } from "../db/schema.js"
 import { env } from "../env.js";
 import { executeStreamWithFallback } from "../router/fallback.js";
 import { resolveModel } from "../router/resolve-model.js";
-import { executeChatTool, openAiToolDefinitions } from "./tools.js";
+import { executeChatTool, openAiToolDefinitions, type ToolOptions } from "./tools.js";
 import { generateFunctionPlotPoints } from "./function-plot.js";
 import { parseRichBlocksFromText, richBlocksSchema, type RichBlocks } from "./rich-blocks.js";
 import { CHAT_API_KEY_ID, ensureInternalChatApiKey } from "./internal-api-key.js";
-import { applyUncensoredTransform, buildRetryMessages, detectRefusal, isUncensoredAlias, uncensoredInstructions } from "../middleware/uncensored.js";
+import { applyUncensoredTransform, isUncensoredAlias, uncensoredInstructions } from "../middleware/uncensored.js";
+import { appendAgentEvent, createCheckpoint, createQuestion, createSubagent, getActivePlan, savePlan, updateSubagent, waitForQuestion, type AgentMode } from "./agent-state.js";
 
 export type ChatRunEvent =
   | { type: "run"; run: unknown }
@@ -22,6 +23,12 @@ export type ChatRunEvent =
   | { type: "tool_call"; toolCall: unknown }
   | { type: "tool_result"; toolCallId?: string; toolName: string; result: unknown }
   | { type: "rich_block"; block: unknown }
+  | { type: "plan_created" | "plan_updated"; plan: unknown }
+  | { type: "todo_update"; plan: unknown }
+  | { type: "file_change"; change: unknown }
+  | { type: "checkpoint"; checkpoint: unknown }
+  | { type: "question"; question: unknown }
+  | { type: "subagent_status"; subagent: unknown }
   | { type: "done"; message: unknown; run: unknown }
   | { type: "error"; error: string };
 
@@ -41,10 +48,18 @@ Du antwortest **Samuel Mencke** — 15 Jahre alt, Entwickler aus Deutschland (9.
 5. ** Kreativ** — Ideen generieren, Texte verfassen, Brainstorming. Sei kreativ und originell, nicht generisch.
 6. ** Ehrlich** — Wenn du etwas nicht weißt, sag es. Wenn etwas fehlschlägt, melde es wahrheitsgemäß. Erfinde niemals Fakten, Code-APIs oder technische Details.
 
-## Werkzeuge (nutze sie nur wenn wirklich hilfreich)
+## Werkzeuge (nutze sie proaktiv!)
+Du hast **volle Shell-Zugriff** auf den Server (user: samuel, Ubuntu homeserver). Nutze diese Tools um Aufgaben **direkt auszuführen**, nicht nur zu beschreiben:
+
+- **shell_exec** — Führt beliebige Linux-Befehle aus (stdout/stderr/exit code). Nutze das für ALLES: Skripte ausführen, Pakete installieren, System-Status prüfen, Netzwerk-Tools starten, Dateien lesen, Prozesse verwalten. Wenn Samuel dich bittet etwas zu tun — MACHE ES, anstatt nur Befehle vorzuschlagen.
+- **file_write** — Schreibe Dateien nach /home/samuel/. Skripte, Configs, Code — alles.
+- **tmux_run** — Starte langlaufende Befehle in tmux (läuft weiter nach Chat-Ende). Perfekt für Server, Downloads, Background-Tasks.
 - **web_search** — Live-Websuche über SearXNG
 - **web_extract** — Liest den Inhalt einer URL als Markdown
-- Du hast auch einige Admin-Tools für das Gateway Dashboard verfügbar — nutze sie nur wenn Samuel explizit nach Gateway-Metriken fragt.
+
+**WICHTIG:** Wenn Samuel dich bittet etwas auszuführen (z.B. "starte das Tool", "schick das ab", "führe das aus"), dann **nutze shell_exec oder tmux_run** um es WIRKLICH zu tun. Antworte nicht nur mit Befehlen — FÜHRE SIE AUS und berichte das Ergebnis. Das ist ein Agent, kein Chatbot.
+
+Nach der Ausführung berichtest du knapp was passiert ist (Erfolg/Fehler, Output-Zusammenfassung, Status).
 
 ## Formatierung
 - Antworte in Markdown mit sauberer Struktur (Header, Listen, **fett** für Hervorhebungen)
@@ -440,11 +455,19 @@ export function getActivePath(threadId: string): string[] {
   return path;
 }
 
+async function runSubagent(spec:{agentName:string;task:string;model?:string;background:boolean},threadId:string,parentRunId:string,defaultModel:string,controller:ReadableStreamDefaultController<Uint8Array>){
+  const childThreadId=nanoid(); const row=createSubagent({threadId,parentRunId,name:spec.agentName,task:spec.task,model:spec.model??defaultModel,background:spec.background,childThreadId});
+  const publish=(status:string,result?:string,error?:string)=>{const updated=updateSubagent(row.id,status,result,error);appendAgentEvent(threadId,parentRunId,"subagent_status",updated);try{emitSse(controller,{type:"subagent_status",subagent:updated});}catch{} return updated;};
+  const work=async()=>{publish("running");try{const stream=createChatRunStream({threadId:undefined,content:`Sub-agent ${spec.agentName}: ${spec.task}`,modelAlias:spec.model??defaultModel,mode:"agent"});const reader=stream.getReader();const decoder=new TextDecoder();let buf="",summary="";while(true){const x=await reader.read();if(x.done)break;buf+=decoder.decode(x.value,{stream:true});const parts=buf.split("\n\n");buf=parts.pop()??"";for(const part of parts){const line=part.split("\n").find(l=>l.startsWith("data: "));if(!line)continue;try{const e=JSON.parse(line.slice(6));if(e.type==="done")summary=e.message?.contentText??"Completed";if(e.type==="error")throw new Error(e.error);}catch(e){if(e instanceof SyntaxError)continue;throw e;}}}publish("completed",summary);return {summary:`Sub-agent ${spec.agentName} completed: ${summary}`,raw:{subagentId:row.id,status:"completed",result:summary}};}catch(e){const message=e instanceof Error?e.message:"Sub-agent failed";publish("failed",undefined,message);throw e;}};
+  if(spec.background){void work().catch(()=>{});publish("running");return {summary:`Sub-agent ${spec.agentName} is running in background.`,raw:{subagentId:row.id,status:"running",background:true}};} return work();
+}
+
 export function createChatRunStream(input: {
   threadId?: string;
   content: string;
   modelAlias: string;
   webSearch?: boolean;
+  mode?: AgentMode;
   parentMessageId?: string;
   attachments?: Array<{ id: string; filename: string; mimeType: string; size: number; url: string }>;
 }) {
@@ -509,14 +532,22 @@ export function createChatRunStream(input: {
         db.insert(chatRuns).values(run).run();
         emitSse(controller, { type: "run", run });
 
+        const mode:AgentMode=input.mode??"agent";
         const context = buildContext(threadId, userMessage.id, input.modelAlias);
+        context.messages.splice(1,0,{role:"system",content: mode==="ask" ? "ASK MODE: inspect and explain only; never mutate files or execute commands." : mode==="plan" ? "PLAN MODE: investigate, ask clarifying questions when necessary, then call create_plan. Do not edit or execute." : "AGENT MODE: act autonomously, maintain todos for multi-step work, verify changes before finishing, and use subagents for independent parallel work."});
         if (context.compacted) {
           const compact = createStep(runId, "compact", "Context compacted", { maxMessages: env.CHAT_CONTEXT_MAX_MESSAGES }, "completed");
           emitSse(controller, { type: "step", step: serializeStep(compact) });
         }
 
         let messages: InternalMessage[] = context.messages;
-        const toolOptions = { webSearchEnabled: input.webSearch === true };
+        let activePlan=getActivePlan(threadId) as any;
+        const toolOptions: ToolOptions = {
+          webSearchEnabled: input.webSearch === true, mode, threadId, runId, activePlan,
+          onPlan:(plan)=>{ const persisted=savePlan({...plan,threadId,status:plan.status??"reviewing",createdAt:now(),updatedAt:now()} as any); activePlan=persisted; toolOptions.activePlan=plan; const type=plan.status==="reviewing"?"plan_created":"plan_updated"; appendAgentEvent(threadId,runId,type,persisted); emitSse(controller,{type,plan:persisted} as ChatRunEvent); },
+          onQuestion:async(q)=>{const question=createQuestion(threadId,runId,q.question,q.options);appendAgentEvent(threadId,runId,"question",question);emitSse(controller,{type:"question",question});const answer=await waitForQuestion(question.id);appendAgentEvent(threadId,runId,"question_answered",{id:question.id,answer});return {id:question.id,answer} as any;},
+          onSubagent:async spec=>runSubagent(spec,threadId,runId,input.modelAlias,controller)
+        };
         const tools = openAiToolDefinitions(toolOptions);
         let finalText = "";
         let finalReasoningText = "";
@@ -525,16 +556,20 @@ export function createChatRunStream(input: {
         let finalModel = target?.model ?? null;
         let usage: { inputTokens?: number; outputTokens?: number; totalTokens?: number } = {};
 
-        const uncensoredMode = isUncensoredAlias(input.modelAlias);
-        let uncensoredRetries = 0;
-        const MAX_UNCENSORED_RETRIES = 2;
+        // Uncensored mode is handled earlier in buildContext() — system prompt
+        // is already replaced with NOVA prompt and keyword neutralization applied.
+        // No additional refusal detection or retry logic needed here.
 
         for (let stepIndex = 0; stepIndex < env.CHAT_AGENT_MAX_STEPS; stepIndex += 1) {
           const modelStep = createStep(runId, "model", "Provider call", { stepIndex, modelAlias: input.modelAlias, route: route.attempts });
           emitSse(controller, { type: "step", step: serializeStep(modelStep) });
           const extraBody: Record<string, unknown> = {};
           if (tools.length) extraBody.tool_choice = "auto";
-          if (shouldUseZaiThinking(route)) {
+          // In uncensored mode, DISABLE thinking — GLM reasons itself into refusals.
+          // Otherwise, enable Z.AI thinking for normal mode.
+          if (isUncensoredAlias(input.modelAlias)) {
+            extraBody.thinking = { type: "disabled" };
+          } else if (shouldUseZaiThinking(route)) {
             extraBody.thinking = { type: "enabled", clear_thinking: false };
           }
           const result = await executeStreamWithFallback(
@@ -566,22 +601,6 @@ export function createChatRunStream(input: {
           });
           emitSse(controller, { type: "step", step: serializeStep(db.select().from(chatSteps).where(eq(chatSteps.id, modelStep.id)).get()!) });
 
-          // ── UNCENSORED REFUSAL DETECTION + AUTO-RETRY ──
-          // If the model refused despite all anti-refusal measures, and this
-          // is a final answer (no tool calls), retry with prefill+nudge.
-          if (uncensoredMode && !streamed.toolCalls.length && streamed.content && detectRefusal(streamed.content) && uncensoredRetries < MAX_UNCENSORED_RETRIES) {
-            uncensoredRetries += 1;
-            const retryStep = createStep(runId, "model", `Refusal detected — retry ${uncensoredRetries}/${MAX_UNCENSORED_RETRIES} with prefill`, { stepIndex, refusalDetected: true }, "running");
-            emitSse(controller, { type: "step", step: serializeStep(retryStep) });
-            // Build retry messages: original + refused response + nudge + prefill
-            messages = buildRetryMessages(messages, streamed.content, "de");
-            completeStep(retryStep.id, { retried: true, attempt: uncensoredRetries }, "completed");
-            emitSse(controller, { type: "step", step: serializeStep(db.select().from(chatSteps).where(eq(chatSteps.id, retryStep.id)).get()!) });
-            // Don't advance stepIndex — retry the same step
-            stepIndex -= 1;
-            continue;
-          }
-
           if (streamed.toolCalls.length && tools.length) {
             messages = [
               ...messages,
@@ -608,6 +627,9 @@ export function createChatRunStream(input: {
                 const completed = completeStep(toolStep.id, output);
                 emitSse(controller, { type: "step", step: serializeStep(completed) });
                 emitSse(controller, { type: "tool_result", toolCallId: call.id, toolName: call.function.name, result: output });
+                appendAgentEvent(threadId,runId,"tool_result",{toolCallId:call.id,toolName:call.function.name,result:output});
+                if(output.fileChange){ const checkpoint=createCheckpoint(threadId,runId,[{path:output.fileChange.path,oldContent:output.fileChange.oldContent??null,newContent:output.fileChange.newContent}]); emitSse(controller,{type:"checkpoint",checkpoint}); emitSse(controller,{type:"file_change",change:{...output.fileChange,checkpointId:checkpoint.id}}); appendAgentEvent(threadId,runId,"file_change",{...output.fileChange,checkpointId:checkpoint.id}); }
+                if(output.plan) emitSse(controller,{type:"todo_update",plan:output.plan});
                 messages = [
                   ...messages,
                   {

@@ -1,5 +1,21 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: "fixelPont";
+  src: url("/fonts/fixelPont-regular.woff2") format("woff2"),
+       url("/fonts/fixelPont-regular.woff") format("woff");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Only dedicated numeric value elements use fixelPont. Model names, providers, IDs, paths and prose stay normal. */
+:where([data-crucible="tally"], .metric-number, .stat-value, .ledger-value, .fx-data) {
+  font-family: "fixelPont", ui-monospace, monospace !important;
+  font-variant-numeric: tabular-nums;
+  font-weight: 400 !important;
+}
+
 @theme inline {
   --color-canvas:var(--bg-base); --color-panel:var(--bg-surface); --color-elevated:var(--bg-elevated); --color-input:var(--bg-input); --color-hover:var(--bg-hover);
   --color-ink:var(--text-primary); --color-dim:var(--text-secondary); --color-faint:var(--text-muted);

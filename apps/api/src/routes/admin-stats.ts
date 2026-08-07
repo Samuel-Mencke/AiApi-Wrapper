@@ -9,6 +9,32 @@ import { requireAdminAuth } from "../middleware/auth.js";
 import { CHAT_API_KEY_ID, CHAT_API_KEY_NAME, ensureInternalChatApiKey } from "../chat/internal-api-key.js";
 import { isProviderResetActive, parseProviderResetAt } from "./provider-reset.js";
 
+export const EARLIEST_STATS_TIMESTAMP = new Date(0).toISOString();
+
+export function safeCalculatedIso(timestamp: number): string | null {
+  if (!Number.isFinite(timestamp)) return null;
+  const date = new Date(timestamp);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+export function safeDateOffsetIso(value: string, offsetMs: number): string | null {
+  const timestamp = new Date(value).getTime();
+  if (!Number.isFinite(timestamp) || !Number.isFinite(offsetMs)) return null;
+  return safeCalculatedIso(timestamp + offsetMs);
+}
+
+function rangeStartIso(range: string, fallbackRange: string): string {
+  const durations: Record<string, number | null> = {
+    "24h": 24 * 60 * 60 * 1000,
+    "7d": 7 * 24 * 60 * 60 * 1000,
+    "30d": 30 * 24 * 60 * 60 * 1000,
+    alltime: null
+  };
+  const duration = durations[range] ?? durations[fallbackRange];
+  if (duration === null || duration === undefined) return EARLIEST_STATS_TIMESTAMP;
+  return safeCalculatedIso(Date.now() - duration) ?? EARLIEST_STATS_TIMESTAMP;
+}
+
 function startOfToday(): string {
   const now = new Date();
   now.setHours(0, 0, 0, 0);
@@ -171,7 +197,7 @@ export async function adminStatsRoutes(app: FastifyInstance): Promise<void> {
     const activeProviders = db.select().from(providers).all().filter((provider) => provider.enabled).length;
     const keyNames = apiKeyNameMap();
     const today = startOfToday();
-    const fiveHoursAgo = new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString();
+    const fiveHoursAgo = safeCalculatedIso(Date.now() - 5 * 60 * 60 * 1000) ?? EARLIEST_STATS_TIMESTAMP;
     const requestsToday = allRequests.filter((request) => request.createdAt >= today).length;
     const responsesToday = allResponses.filter((response) => response.createdAt >= today && !response.deletedAt).length;
     const requestsLast5h = allRequests.filter((request) => request.createdAt >= fiveHoursAgo).length;
@@ -183,14 +209,7 @@ export async function adminStatsRoutes(app: FastifyInstance): Promise<void> {
 
     // === Time-range filtering (Task B1) ===
     const rangeParam = (request.query as { range?: string }).range ?? "alltime";
-    const rangeMs: Record<string, number> = {
-      "24h": 24 * 60 * 60 * 1000,
-      "7d": 7 * 24 * 60 * 60 * 1000,
-      "30d": 30 * 24 * 60 * 60 * 1000,
-      alltime: Number.MAX_SAFE_INTEGER
-    };
-    const rangeDuration = rangeMs[rangeParam] ?? Number.MAX_SAFE_INTEGER;
-    const rangeStart = new Date(Date.now() - rangeDuration).toISOString();
+    const rangeStart = rangeStartIso(rangeParam, "alltime");
     const rangedRequests = allRequests.filter((r) => r.createdAt >= rangeStart);
 
     const hourly = new Map<string, {
@@ -320,7 +339,7 @@ export async function adminStatsRoutes(app: FastifyInstance): Promise<void> {
       return !providerQuotaProviders.has(setting.provider);
     });
     const quotaWindows = quotaRows.map((setting) => {
-      const windowStart = new Date(Date.now() - setting.windowHours * 60 * 60 * 1000).toISOString();
+      const windowStart = safeCalculatedIso(Date.now() - setting.windowHours * 60 * 60 * 1000) ?? EARLIEST_STATS_TIMESTAMP;
       const matching = allRequests.filter(
         (request) =>
           request.createdAt >= windowStart &&
@@ -342,7 +361,7 @@ export async function adminStatsRoutes(app: FastifyInstance): Promise<void> {
         concurrencyLimit: setting.concurrencyLimit,
         requestPercent,
         tokenPercent,
-        resetsAt: new Date(Date.now() + setting.windowHours * 60 * 60 * 1000).toISOString()
+        resetsAt: safeCalculatedIso(Date.now() + setting.windowHours * 60 * 60 * 1000)
       };
     });
     // === Model Performance Scoring ===
@@ -498,13 +517,7 @@ export async function adminStatsRoutes(app: FastifyInstance): Promise<void> {
   // === Task B2: Cost breakdown endpoint ===
   app.get("/admin/stats/cost-breakdown", { preHandler: requireAdminAuth }, async (request) => {
     const rangeParam = (request.query as { range?: string }).range ?? "alltime";
-    const rangeMs: Record<string, number> = {
-      "24h": 24 * 60 * 60 * 1000,
-      "7d": 7 * 24 * 60 * 60 * 1000,
-      "30d": 30 * 24 * 60 * 60 * 1000,
-      alltime: Number.MAX_SAFE_INTEGER
-    };
-    const since = new Date(Date.now() - (rangeMs[rangeParam] ?? Number.MAX_SAFE_INTEGER)).toISOString();
+    const since = rangeStartIso(rangeParam, "alltime");
     const rangeRequests = db.select().from(requests).all().filter((r) => r.createdAt >= since);
 
     const byProvider = new Map<string, { inputTokens: number; outputTokens: number; cost: number; requests: number }>();
@@ -544,13 +557,7 @@ export async function adminStatsRoutes(app: FastifyInstance): Promise<void> {
   // === Task B2: Token flow endpoint ===
   app.get("/admin/stats/token-flow", { preHandler: requireAdminAuth }, async (request) => {
     const rangeParam = (request.query as { range?: string }).range ?? "7d";
-    const rangeMs: Record<string, number> = {
-      "24h": 24 * 60 * 60 * 1000,
-      "7d": 7 * 24 * 60 * 60 * 1000,
-      "30d": 30 * 24 * 60 * 60 * 1000,
-      alltime: Number.MAX_SAFE_INTEGER
-    };
-    const since = new Date(Date.now() - (rangeMs[rangeParam] ?? 7 * 24 * 60 * 60 * 1000)).toISOString();
+    const since = rangeStartIso(rangeParam, "7d");
     const rangeRequests = db.select().from(requests).all().filter((r) => r.createdAt >= since);
 
     // Daily stacked by provider
@@ -657,7 +664,7 @@ export async function adminStatsRoutes(app: FastifyInstance): Promise<void> {
 
     const exactProviderResetAt = parseProviderResetAt(quotaError?.errorMessage);
     const estimatedFiveHourResetAt = quotaError && !exactProviderResetAt
-      ? new Date(new Date(quotaError.createdAt).getTime() + 5 * 60 * 60 * 1000).toISOString()
+      ? safeDateOffsetIso(quotaError.createdAt, 5 * 60 * 60 * 1000)
       : null;
     const activeResetAt = exactProviderResetAt ?? estimatedFiveHourResetAt;
     const active = isProviderResetActive(activeResetAt);

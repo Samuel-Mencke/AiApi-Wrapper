@@ -11,12 +11,14 @@ import { requireAdminAuth } from "../middleware/auth.js";
 import { createChatRunStream, getThreadPayload, getActivePath } from "../chat/orchestrator.js";
 import { listChatModels, testChatModel } from "../chat/model-status.js";
 import { listChatTools } from "../chat/tools.js";
+import { answerQuestion, getActivePlan, listAgentEvents, listCheckpoints, listQuestions, listSubagents, restoreCheckpoint } from "../chat/agent-state.js";
 
 const runBody = z.object({
   threadId: z.string().optional(),
   content: z.string().min(1),
   modelAlias: z.string().min(1),
   webSearch: z.boolean().optional(),
+  mode: z.enum(["agent","ask","plan"]).optional(),
   parentMessageId: z.string().optional(),
   attachments: z.array(z.object({
     id: z.string(),
@@ -121,6 +123,10 @@ export async function adminChatRoutes(app: FastifyInstance): Promise<void> {
       }
     }
   });
+
+  app.get("/admin/chat/threads/:id/agent-state", { preHandler: requireAdminAuth }, async request => { const {id}=z.object({id:z.string()}).parse(request.params); return {data:{plan:getActivePlan(id),events:listAgentEvents(id),checkpoints:listCheckpoints(id),questions:listQuestions(id),subagents:listSubagents(id)}}; });
+  app.post("/admin/chat/questions/:id/answer", { preHandler: requireAdminAuth }, async request => {const {id}=z.object({id:z.string()}).parse(request.params);const {answer}=z.object({answer:z.string().min(1).max(4000)}).parse(request.body);return {data:answerQuestion(id,answer)};});
+  app.post("/admin/chat/checkpoints/:id/restore", { preHandler: requireAdminAuth }, async request => {const {id}=z.object({id:z.string()}).parse(request.params);return {data:await restoreCheckpoint(id)};});
 
   // Delete a single message (and optionally its children)
   app.delete("/admin/chat/messages/:id", { preHandler: requireAdminAuth }, async (request) => {

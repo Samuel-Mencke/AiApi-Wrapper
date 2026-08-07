@@ -11,11 +11,16 @@ function stripProviderFields(raw: Record<string, unknown>, includeReasoning: boo
         delete (message as any).reasoning_content;
         delete (message as any).thinking_content;
       }
-      // Clean up empty strings in delta/message
+      // Clean up empty strings in delta/message — but ALWAYS keep `content`
+      // (null is fine, OpenAI sends null for reasoning-only responses).
       if (message && typeof message === "object") {
         for (const key of Object.keys(message)) {
           if (typeof (message as any)[key] === "string" && (message as any)[key] === "") {
-            delete (message as any)[key];
+            if (key === "content") {
+              (message as any)[key] = null;
+            } else {
+              delete (message as any)[key];
+            }
           }
         }
       }

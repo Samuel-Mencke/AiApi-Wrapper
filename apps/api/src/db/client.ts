@@ -133,6 +133,15 @@ export function migrate(): void {
       latency_ms INTEGER,
       status TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS chat_plans (id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, name TEXT NOT NULL, overview TEXT NOT NULL, steps_json TEXT NOT NULL, todos_json TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS chat_checkpoints (id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, run_id TEXT, files_json TEXT NOT NULL, created_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS chat_agent_events (id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, run_id TEXT, type TEXT NOT NULL, payload_json TEXT NOT NULL, created_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS chat_questions (id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, run_id TEXT NOT NULL, question TEXT NOT NULL, options_json TEXT NOT NULL, status TEXT NOT NULL, answer TEXT, created_at TEXT NOT NULL, answered_at TEXT);
+    CREATE TABLE IF NOT EXISTS chat_subagent_runs (id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, parent_run_id TEXT NOT NULL, child_thread_id TEXT NOT NULL, agent_name TEXT NOT NULL, task TEXT NOT NULL, status TEXT NOT NULL, result_summary TEXT, error TEXT, model_alias TEXT NOT NULL, background INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, started_at TEXT, completed_at TEXT);
+    CREATE INDEX IF NOT EXISTS idx_agent_events_thread ON chat_agent_events(thread_id,created_at);
+    CREATE INDEX IF NOT EXISTS idx_plans_thread ON chat_plans(thread_id,updated_at);
+    CREATE INDEX IF NOT EXISTS idx_checkpoints_thread ON chat_checkpoints(thread_id,created_at);
+    CREATE INDEX IF NOT EXISTS idx_subagents_thread ON chat_subagent_runs(thread_id,created_at);
     CREATE TABLE IF NOT EXISTS responses (
       id TEXT PRIMARY KEY,
       api_key_id TEXT,
